@@ -1099,6 +1099,47 @@ function StatusPanel({ r }: { r: ReceiverSnapshot }) {
         )}
       </div>
 
+      <div className="status-card">
+        <h3 className="status-card-title mixed-case">Survey sessions</h3>
+        {!r.dcol_survey_sessions && r.online && (
+          <p className="muted" style={{ margin: 0, fontSize: 13 }}>
+            Waiting for RETSESSTN session summary (44h)…
+          </p>
+        )}
+        {!r.dcol_survey_sessions && !r.online && <p className="muted" style={{ margin: 0, fontSize: 13 }}>—</p>}
+        {r.dcol_survey_sessions?.nak && (
+          <p className="muted" style={{ margin: 0, fontSize: 13 }}>
+            Not available — receiver NAK for GETSESSTN (command not supported or cannot be processed).
+          </p>
+        )}
+        {r.dcol_survey_sessions && !r.dcol_survey_sessions.nak && (
+          <>
+            {r.dcol_survey_sessions.count === 0 ? (
+              <p className="muted" style={{ margin: 0, fontSize: 13 }}>
+                No sessions in receiver summary.
+              </p>
+            ) : (
+              <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                <thead>
+                  <tr>
+                    <th style={th}>Idx</th>
+                    <th style={th}>Session ID</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(r.dcol_survey_sessions.items ?? []).map((row, i) => (
+                    <tr key={`${row.index}-${row.id}-${i}`}>
+                      <td style={tdV}>{row.index}</td>
+                      <td style={tdV}>{row.id?.trim() || "—"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </>
+        )}
+      </div>
+
       {/* Position — first */}
       <div className="status-card">
         <h3 className="status-card-title mixed-case">Position</h3>

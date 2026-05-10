@@ -11,6 +11,8 @@ import (
 const (
 	TypeGETSESSTN = 0x43 // GETSESSTN — request session/station information
 	TypeRETSESSTN = 0x44 // RETSESSTN — return survey session/station parameters
+	// TypeNAK is the DCOL negative-ack packet type (receiver rejects a command); payload often starts with the rejected command byte.
+	TypeNAK = 0x15
 )
 
 // SessionStationReq is the first payload byte of GETSESSTN (session/station request type).

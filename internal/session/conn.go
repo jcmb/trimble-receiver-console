@@ -33,8 +33,8 @@ type ConnSession struct {
 	mu             sync.Mutex
 	gsofSeenLogged bool // log once that GSOF is present on this connection
 	lastNoGSOFWarn time.Time
-	openedAt           time.Time
-	rxBytes            uint64 // ingress bytes (not exposed to clients; for diagnostics only)
+	openedAt       time.Time
+	rxBytes        uint64 // ingress bytes (not exposed to clients; for diagnostics only)
 }
 
 func NewConnSession(c net.Conn, gr *GroupRuntime, cfg *appcfg.Config) *ConnSession {
@@ -161,6 +161,32 @@ func (s *ConnSession) handleMessage(m dcol.Message) {
 		}
 	}
 
+	// GETSESSTN (43h) → RETSESSTN (44h) session summary, or NAK (15h) with rejected command in payload[0].
+	if m.PacketType == dcolserial.TypeRETSESSTN && len(m.Payload) > 0 {
+		if ret, ok := dcolserial.ParseRetSesstnPayload(m.Payload); ok && ret.SessionSummary != nil {
+			ss := ret.SessionSummary
+			now := time.Now()
+			items := ss.Items
+			if items == nil {
+				items = []dcolserial.SummaryEntry{}
+			}
+			snap.DCOLSurveySessions = &DCOLSurveySessionsSnapshot{
+				ReceivedAt: now,
+				NAK:        false,
+				Count:      ss.Count,
+				Items:      items,
+			}
+		}
+	}
+	if m.PacketType == dcolserial.TypeNAK && len(m.Payload) >= 1 && m.Payload[0] == dcolserial.TypeGETSESSTN {
+		snap.DCOLSurveySessions = &DCOLSurveySessionsSnapshot{
+			ReceivedAt: time.Now(),
+			NAK:        true,
+			Count:      0,
+			Items:      nil,
+		}
+	}
+
 	snap.Mode = EffectiveSnapshotMode(s.mode, snap.DCOLRetSerial != nil)
 
 	if len(m.GSOFBuffer) == 0 {
@@ -188,19 +214,23 @@ func (s *ConnSession) handleMessage(m dcol.Message) {
 	s.store.Set(s.storeKey, snap)
 }
 
-// sendStartupDCOLQueries sends connection-time DCOL commands (GET SERIAL 06h).
+// sendStartupDCOLQueries sends connection-time DCOL commands (GET SERIAL 06h, GETSESSTN session summary 43h).
 // Periodic / cyclic DCOL polling can be added separately from this one-shot path.
 func (s *ConnSession) sendStartupDCOLQueries() {
-	fr, err := trimblecfg.Pack(0x06, nil)
-	if err != nil {
-		log.Printf("DCOL GETSERIAL pack error group_id=%q: %v", s.group.ID, err)
-		return
-	}
 	s.writeMu.Lock()
-	_, werr := s.conn.Write(fr)
-	s.writeMu.Unlock()
-	if werr != nil {
+	defer s.writeMu.Unlock()
+
+	if fr, err := trimblecfg.Pack(0x06, nil); err != nil {
+		log.Printf("DCOL GETSERIAL pack error group_id=%q: %v", s.group.ID, err)
+	} else if _, werr := s.conn.Write(fr); werr != nil {
 		log.Printf("DCOL GETSERIAL write group_id=%q remote=%s: %v", s.group.ID, s.conn.RemoteAddr(), werr)
+	}
+
+	pl := dcolserial.GETSesstnPayload(dcolserial.ReqSessionSummary, 0)
+	if fr, err := trimblecfg.Pack(dcolserial.TypeGETSESSTN, pl); err != nil {
+		log.Printf("DCOL GETSESSTN pack error group_id=%q: %v", s.group.ID, err)
+	} else if _, werr := s.conn.Write(fr); werr != nil {
+		log.Printf("DCOL GETSESSTN write group_id=%q remote=%s: %v", s.group.ID, s.conn.RemoteAddr(), werr)
 	}
 }
 

@@ -30,10 +30,10 @@ func EffectiveSnapshotMode(configured Mode, hasDCOLSerialReply bool) Mode {
 
 // SVInfo is one satellite for sky plot and counts.
 type SVInfo struct {
-	PRN       int     `json:"prn"`
-	System    int     `json:"system"` // 0 GPS, 1 SBAS, 2 GLO, 3 Gal, 4 QZSS, 5 BDS
-	Elevation float64 `json:"elevation_deg"`
-	Azimuth   float64 `json:"azimuth_deg"`
+	PRN       int      `json:"prn"`
+	System    int      `json:"system"` // 0 GPS, 1 SBAS, 2 GLO, 3 Gal, 4 QZSS, 5 BDS
+	Elevation float64  `json:"elevation_deg"`
+	Azimuth   float64  `json:"azimuth_deg"`
 	CN0       float64  `json:"cn0_db_hz"` // L1 (first carrier); backward-compatible primary SNR
 	CN0L2     *float64 `json:"cn0_l2_db_hz,omitempty"`
 	CN0L56    *float64 `json:"cn0_l56_db_hz,omitempty"` // third SNR byte — displayed in L5 column
@@ -49,25 +49,34 @@ type DCOLRetSerialSnapshot struct {
 	dcolserial.RetSerialInfo
 	ReceivedAt time.Time `json:"received_at"`
 }
+
+// DCOLSurveySessionsSnapshot holds GETSESSTN session-summary results (RETSESSTN indicator 2) or a NAK (15h).
+type DCOLSurveySessionsSnapshot struct {
+	ReceivedAt time.Time                 `json:"received_at"`
+	NAK        bool                      `json:"nak,omitempty"`
+	Count      int                       `json:"count"`
+	Items      []dcolserial.SummaryEntry `json:"items,omitempty"`
+}
+
 // VectorCardSnapshot groups GSOF record 7 (tangent-plane ENU) and record 28 (receiver diagnostics) for the UI.
 type VectorCardSnapshot struct {
-	TangentPlane *gsof.TangentPlaneENU         `json:"tangent_plane,omitempty"`
-	Diagnostics  *gsof.ReceiverDiagnostics28   `json:"diagnostics,omitempty"`
+	TangentPlane *gsof.TangentPlaneENU       `json:"tangent_plane,omitempty"`
+	Diagnostics  *gsof.ReceiverDiagnostics28 `json:"diagnostics,omitempty"`
 }
 
 // ReceiverSnapshot is JSON-serialized to API/WebSocket clients.
 type ReceiverSnapshot struct {
-	GroupID           string    `json:"group_id"`
-	FirstSeen         time.Time `json:"first_seen"`
-	Serial            string    `json:"serial"`
-	FirmwareVersion   string    `json:"firmware_version"`
-	RemoteAddr        string    `json:"remote_addr"`
-	Mode              Mode      `json:"mode"`
-	Online            bool      `json:"online"`
-	LastUpdate        time.Time `json:"last_update"`
+	GroupID         string    `json:"group_id"`
+	FirstSeen       time.Time `json:"first_seen"`
+	Serial          string    `json:"serial"`
+	FirmwareVersion string    `json:"firmware_version"`
+	RemoteAddr      string    `json:"remote_addr"`
+	Mode            Mode      `json:"mode"`
+	Online          bool      `json:"online"`
+	LastUpdate      time.Time `json:"last_update"`
 	// Completed GSOF reports (DCOL 0x40 reassembled → GSOFBuffer non-empty)
-	LastGSOFAt       time.Time `json:"last_gsof_at"`
-	GSOFReportCount  uint64    `json:"gsof_report_count"`
+	LastGSOFAt        time.Time `json:"last_gsof_at"`
+	GSOFReportCount   uint64    `json:"gsof_report_count"`
 	LatRad            float64   `json:"lat_rad"`
 	LonRad            float64   `json:"lon_rad"`
 	HeightM           float64   `json:"height_m"`
@@ -93,39 +102,41 @@ type ReceiverSnapshot struct {
 	RadioInfo *gsof.RadioInfo `json:"radio_info,omitempty"`
 	// DCOL report 07h RETSERIAL (reply to command 06h GETSERIAL) — normal DCOL, not GSOF.
 	DCOLRetSerial *DCOLRetSerialSnapshot `json:"dcol_ret_serial,omitempty"`
+	// DCOL 43h / 44h session summary at TCP connect (may be NAK 15h instead).
+	DCOLSurveySessions *DCOLSurveySessionsSnapshot `json:"dcol_survey_sessions,omitempty"`
 	// xFill hints from position type extended (GSOF 0x26 NETWORK_FLAGS2 when present)
 	XFillPresent bool `json:"xfill_present,omitempty"`
 	XFillReady   bool `json:"xfill_ready,omitempty"`
 	// Receiver hardware / product string when known (future GSOF or serial query)
 	ReceiverType string `json:"receiver_type,omitempty"`
 	// Error estimates (Type 12 sigma)
-	PositionRMS   float64 `json:"position_rms_m"`
-	SigmaEast     float64 `json:"sigma_east_m"`
-	SigmaNorth    float64 `json:"sigma_north_m"`
-	SigmaUp       float64 `json:"sigma_up_m"`
-	SemiMajor     float64 `json:"-"`
-	SemiMinor     float64 `json:"-"`
-	HasSigma      bool    `json:"has_sigma"`
-	PDOP          float64 `json:"pdop"`
-	HDOP          float64 `json:"hdop"`
-	VDOP          float64 `json:"vdop"`
-	TDOP          float64 `json:"tdop"`
-	HasDOP        bool    `json:"has_dop"`
+	PositionRMS float64 `json:"position_rms_m"`
+	SigmaEast   float64 `json:"sigma_east_m"`
+	SigmaNorth  float64 `json:"sigma_north_m"`
+	SigmaUp     float64 `json:"sigma_up_m"`
+	SemiMajor   float64 `json:"-"`
+	SemiMinor   float64 `json:"-"`
+	HasSigma    bool    `json:"has_sigma"`
+	PDOP        float64 `json:"pdop"`
+	HDOP        float64 `json:"hdop"`
+	VDOP        float64 `json:"vdop"`
+	TDOP        float64 `json:"tdop"`
+	HasDOP      bool    `json:"has_dop"`
 	// Velocity Type 8
 	HorizontalVelMS float64 `json:"horizontal_vel_ms"`
 	VerticalVelMS   float64 `json:"vertical_vel_ms"`
 	HeadingRad      float64 `json:"heading_rad"`
 	HasVelocity     bool    `json:"has_velocity"`
 	// RTK baseline ECEF delta Type 6
-	DeltaXM           float64 `json:"delta_x_m"`
-	DeltaYM           float64 `json:"delta_y_m"`
-	DeltaZM           float64 `json:"delta_z_m"`
-	HasBaseline       bool    `json:"has_baseline"`
+	DeltaXM           float64             `json:"delta_x_m"`
+	DeltaYM           float64             `json:"delta_y_m"`
+	DeltaZM           float64             `json:"delta_z_m"`
+	HasBaseline       bool                `json:"has_baseline"`
 	Vector            *VectorCardSnapshot `json:"vector,omitempty"`
-	SVs               []SVInfo `json:"satellites"`
-	SVUsedBySystem    map[string]int `json:"sv_used_by_system"`
-	SVTrackedBySystem map[string]int `json:"sv_tracked_by_system"`
-	StreamWarnings    []string `json:"stream_warnings,omitempty"`
+	SVs               []SVInfo            `json:"satellites"`
+	SVUsedBySystem    map[string]int      `json:"sv_used_by_system"`
+	SVTrackedBySystem map[string]int      `json:"sv_tracked_by_system"`
+	StreamWarnings    []string            `json:"stream_warnings,omitempty"`
 	// Last config applied (intent), for UI
 	LastConfigJSON string `json:"last_config_json,omitempty"`
 	ConfigStatus   string `json:"config_status,omitempty"`

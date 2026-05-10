@@ -121,6 +121,14 @@ export type DCOLRetSerial = {
   base_ngs_ant_descriptor?: string;
 };
 
+/** DCOL 43h / 44h — survey session summary from GETSESSTN at connect; nak when receiver sends DCOL NAK (15h). */
+export type DCOLSurveySessions = {
+  received_at: string;
+  nak?: boolean;
+  count: number;
+  items?: { index: number; id: string }[];
+};
+
 export type ReceiverSnapshot = {
   group_id: string;
   first_seen: string;
@@ -179,6 +187,7 @@ export type ReceiverSnapshot = {
   last_config_json?: string;
   config_status?: string;
   dcol_ret_serial?: DCOLRetSerial;
+  dcol_survey_sessions?: DCOLSurveySessions;
 };
 
 export type GroupInfo = {
