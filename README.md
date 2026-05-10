@@ -31,10 +31,16 @@ TCP connections that never report a serial, DCOL RET SERIAL (07h), or GSOF are c
 ## Build
 
 ```bash
-make   # npm ci && vite build + go build -> bin/trimble-console
+make   # npm ci && vite build + cross-compile -> bin/trimble-console-linux-{amd64,arm64,arm}
 ```
 
-Or, after a web build once:
+Native binary for the host OS/arch (after a web build):
+
+```bash
+make server   # -> bin/trimble-console
+```
+
+Or, after `make web` once:
 
 ```bash
 go build -o bin/trimble-console ./cmd/server
@@ -70,8 +76,14 @@ See [deploy/trimble-console.service](deploy/trimble-console.service). Set `Envir
 
 ## Cross-compile
 
+Individual architectures (each runs `web` first):
+
 ```bash
-GOOS=linux GOARCH=amd64 go build -o bin/trimble-console-linux ./cmd/server
+make linux-amd64    # bin/trimble-console-linux-amd64
+make linux-arm64    # bin/trimble-console-linux-arm64
+make linux-arm       # bin/trimble-console-linux-arm (GOARM=7 by default)
 ```
+
+Plain `make` builds **all three** after the UI (`linux-all`).
 
 (Rebuild `cmd/server/dist` first if the UI changed.)
