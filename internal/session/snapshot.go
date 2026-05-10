@@ -49,6 +49,12 @@ type DCOLRetSerialSnapshot struct {
 	dcolserial.RetSerialInfo
 	ReceivedAt time.Time `json:"received_at"`
 }
+// VectorCardSnapshot groups GSOF record 7 (tangent-plane ENU) and record 28 (receiver diagnostics) for the UI.
+type VectorCardSnapshot struct {
+	TangentPlane *gsof.TangentPlaneENU         `json:"tangent_plane,omitempty"`
+	Diagnostics  *gsof.ReceiverDiagnostics28   `json:"diagnostics,omitempty"`
+}
+
 // ReceiverSnapshot is JSON-serialized to API/WebSocket clients.
 type ReceiverSnapshot struct {
 	GroupID           string    `json:"group_id"`
@@ -115,6 +121,7 @@ type ReceiverSnapshot struct {
 	DeltaYM           float64 `json:"delta_y_m"`
 	DeltaZM           float64 `json:"delta_z_m"`
 	HasBaseline       bool    `json:"has_baseline"`
+	Vector            *VectorCardSnapshot `json:"vector,omitempty"`
 	SVs               []SVInfo `json:"satellites"`
 	SVUsedBySystem    map[string]int `json:"sv_used_by_system"`
 	SVTrackedBySystem map[string]int `json:"sv_tracked_by_system"`

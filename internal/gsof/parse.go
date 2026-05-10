@@ -83,6 +83,59 @@ func ParseECEFDeltaType6(payload []byte) (dx, dy, dz float64, ok bool) {
 	return dx, dy, dz, true
 }
 
+// TangentPlaneENU is GSOF record 7 (0x07) — tangent-plane east/north/up deltas from base to rover (meters).
+type TangentPlaneENU struct {
+	DeltaEastM  float64 `json:"delta_east_m"`
+	DeltaNorthM float64 `json:"delta_north_m"`
+	DeltaUpM    float64 `json:"delta_up_m"`
+}
+
+// ParseTangentPlaneENUType7 parses GSOF record 7 (0x07). Payload excludes record type/length bytes.
+func ParseTangentPlaneENUType7(payload []byte) (*TangentPlaneENU, bool) {
+	if len(payload) < 24 {
+		return nil, false
+	}
+	east, okE := readFloat64BE(payload[0:8])
+	north, okN := readFloat64BE(payload[8:16])
+	up, okU := readFloat64BE(payload[16:24])
+	if !okE || !okN || !okU {
+		return nil, false
+	}
+	return &TangentPlaneENU{DeltaEastM: east, DeltaNorthM: north, DeltaUpM: up}, true
+}
+
+// ReceiverDiagnostics28 is GSOF record 28 decimal (0x1C) — receiver diagnostics (Trimble receiver help).
+type ReceiverDiagnostics28 struct {
+	BaseFlags                    uint8   `json:"base_flags,omitempty"`
+	ReferenceStationInfoReceived bool    `json:"reference_station_info_received,omitempty"`
+	LinkIntegrityPct             float64 `json:"link_integrity_pct,omitempty"`
+	CommonL1SVs                  int     `json:"common_l1_svs,omitempty"`
+	CommonL2SVs                  int     `json:"common_l2_svs,omitempty"`
+	DatalinkLatencySec           float64 `json:"datalink_latency_s,omitempty"`
+	DiffSVsInUse                 int     `json:"diff_svs_in_use,omitempty"`
+	RTKPositionAge               uint8   `json:"rtk_position_age,omitempty"`
+}
+
+// ParseReceiverDiagnosticsType28 parses GSOF record 28 (0x1C). Not record 40 (0x28).
+func ParseReceiverDiagnosticsType28(payload []byte) (*ReceiverDiagnostics28, bool) {
+	if len(payload) < 18 {
+		return nil, false
+	}
+	baseFlags := payload[5]
+	linkRaw := payload[6]
+	out := &ReceiverDiagnostics28{
+		BaseFlags:                    baseFlags,
+		ReferenceStationInfoReceived: baseFlags&0x80 != 0,
+		LinkIntegrityPct:             float64(linkRaw) * 100.0 / 256.0,
+		CommonL1SVs:                  int(payload[9]),
+		CommonL2SVs:                  int(payload[10]),
+		DatalinkLatencySec:           float64(payload[11]) * 0.1,
+		DiffSVsInUse:                 int(payload[13]),
+		RTKPositionAge:               payload[16],
+	}
+	return out, true
+}
+
 // ParseVelocityType8 — record 0x08: flags, horiz vel float, heading float, vert vel float.
 func ParseVelocityType8(payload []byte) (horiz, heading, vert float64, ok bool) {
 	if len(payload) < 13 {
@@ -487,7 +540,7 @@ func radioBandLabel(b byte) string {
 	case 0x04:
 		return "2.4 GHz"
 	case 0x05:
-		return "GPRS modem"
+		return "Cell modem"
 	default:
 		return fmt.Sprintf("Unknown (0x%02X)", b)
 	}

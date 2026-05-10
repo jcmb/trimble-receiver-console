@@ -162,3 +162,48 @@ func TestParseRadioType57(t *testing.T) {
 		t.Fatalf("%+v", r0)
 	}
 }
+
+func TestParseTangentPlaneENUType7(t *testing.T) {
+	buf := make([]byte, 24)
+	binary.BigEndian.PutUint64(buf[0:8], math.Float64bits(1.25))
+	binary.BigEndian.PutUint64(buf[8:16], math.Float64bits(-3.5))
+	binary.BigEndian.PutUint64(buf[16:24], math.Float64bits(0.75))
+	out, ok := ParseTangentPlaneENUType7(buf)
+	if !ok || out == nil {
+		t.Fatal(ok)
+	}
+	if out.DeltaEastM != 1.25 || out.DeltaNorthM != -3.5 || out.DeltaUpM != 0.75 {
+		t.Fatalf("%+v", out)
+	}
+}
+
+func TestParseReceiverDiagnosticsType28(t *testing.T) {
+	buf := make([]byte, 18)
+	buf[5] = 0x80
+	buf[6] = 128
+	buf[9] = 7
+	buf[10] = 6
+	buf[11] = 15
+	buf[13] = 4
+	buf[16] = 9
+	out, ok := ParseReceiverDiagnosticsType28(buf)
+	if !ok || out == nil {
+		t.Fatal(ok)
+	}
+	if !out.ReferenceStationInfoReceived {
+		t.Fatal("ref station flag")
+	}
+	wantPct := float64(128) * 100.0 / 256.0
+	if math.Abs(out.LinkIntegrityPct-wantPct) > 1e-9 {
+		t.Fatalf("pct got %v want %v", out.LinkIntegrityPct, wantPct)
+	}
+	if out.CommonL1SVs != 7 || out.CommonL2SVs != 6 || out.DiffSVsInUse != 4 {
+		t.Fatalf("%+v", out)
+	}
+	if out.DatalinkLatencySec != 1.5 {
+		t.Fatalf("latency %v", out.DatalinkLatencySec)
+	}
+	if out.RTKPositionAge != 9 {
+		t.Fatal(out.RTKPositionAge)
+	}
+}

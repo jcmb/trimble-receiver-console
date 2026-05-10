@@ -63,6 +63,20 @@ func ApplyGSOFBuffer(snap *ReceiverSnapshot, gsofBuf []byte) {
 					hasGPSTime = true
 				}
 			}
+		case 0x07:
+			if tp, ok := gsof.ParseTangentPlaneENUType7(payload); ok {
+				if snap.Vector == nil {
+					snap.Vector = &VectorCardSnapshot{}
+				}
+				snap.Vector.TangentPlane = tp
+			}
+		case 0x1C:
+			if d, ok := gsof.ParseReceiverDiagnosticsType28(payload); ok {
+				if snap.Vector == nil {
+					snap.Vector = &VectorCardSnapshot{}
+				}
+				snap.Vector.Diagnostics = d
+			}
 		case 0x06:
 			if dx, dy, dz, ok := gsof.ParseECEFDeltaType6(payload); ok {
 				snap.DeltaXM, snap.DeltaYM, snap.DeltaZM = dx, dy, dz

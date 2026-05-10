@@ -227,10 +227,6 @@ export function SkyPlot({ svs }: { svs: SVInfo[] }) {
 
   return (
     <div ref={wrapRef} style={{ width: "100%" }}>
-      <p style={{ fontSize: 12, color: "var(--app-muted)", margin: "0 0 8px", lineHeight: 1.4 }}>
-        North up, horizon at outer ring — hover an SV for details. Uncheck a constellation to hide its
-        satellites (only constellations with tracked SVs are listed).
-      </p>
       {showLegend && (
         <div className="row" style={{ flexWrap: "wrap", gap: "6px 14px", marginBottom: 10 }}>
           {SV_SYSTEM_NAMES.map((name, i) => {
