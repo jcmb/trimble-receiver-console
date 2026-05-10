@@ -193,6 +193,8 @@ func (s *ConnSession) handleMessage(m dcol.Message) {
 		if id == "" {
 			id = s.storeKey
 		}
+		log.Printf("gsof verbose group=%q identity=%q dcol_packet_type=0x%02X seq=%d gsof_buffer_len=%d dcol_payload_len=%d",
+			s.group.ID, id, m.PacketType, m.SequenceNumber, len(m.GSOFBuffer), len(m.Payload))
 		gsofLog = &ApplyGSOFOpts{Verbose: true, GroupID: s.group.ID, Identity: id}
 	}
 	ApplyGSOFBuffer(snap, m.GSOFBuffer, gsofLog)
