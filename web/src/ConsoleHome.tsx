@@ -45,6 +45,104 @@ function formatNavFirmwareHundredths(raw: string | undefined): string {
   return (n / 100).toFixed(2);
 }
 
+type ListSortCol =
+  | "serial"
+  | "receiver_type"
+  | "firmware"
+  | "position_type"
+  | "power"
+  | "logging"
+  | "lat_long"
+  | "status"
+  | "mode"
+  | "remote";
+
+function sortKeySerial(r: ReceiverSnapshot): string {
+  const long = r.dcol_ret_serial?.long_serial?.trim();
+  if (long) return long.toLowerCase();
+  const s = r.serial?.trim();
+  if (s) return s.toLowerCase();
+  return `anon:${r.remote_addr}`.toLowerCase();
+}
+
+/** Prefer RET SERIAL long serial (DCOL 07h); matches sort order. */
+function displaySerial(r: ReceiverSnapshot): string {
+  const long = r.dcol_ret_serial?.long_serial?.trim();
+  if (long) return long;
+  return r.serial?.trim() || "—";
+}
+
+function listReceiverTypeDisplay(r: ReceiverSnapshot): string {
+  const d = r.dcol_ret_serial?.receiver_type?.trim();
+  if (d) return d;
+  return r.receiver_type?.trim() || "—";
+}
+
+function defaultListSortAsc(col: ListSortCol): boolean {
+  switch (col) {
+    case "power":
+    case "logging":
+      return false;
+    default:
+      return true;
+  }
+}
+
+function listSortMark(active: boolean, asc: boolean): string {
+  if (!active) return "";
+  return asc ? " ▲" : " ▼";
+}
+
+const LIST_SORT_HEADERS: { label: string; col: ListSortCol }[] = [
+  { label: "Serial", col: "serial" },
+  { label: "Receiver type", col: "receiver_type" },
+  { label: "Firmware", col: "firmware" },
+  { label: "Position type", col: "position_type" },
+  { label: "Power", col: "power" },
+  { label: "Logging", col: "logging" },
+  { label: "Lat Long", col: "lat_long" },
+  { label: "Status", col: "status" },
+  { label: "Mode", col: "mode" },
+  { label: "Remote", col: "remote" },
+];
+
+function ReceiverListTh({
+  label,
+  col,
+  sortCol,
+  asc,
+  onSort,
+}: {
+  label: string;
+  col: ListSortCol;
+  sortCol: ListSortCol;
+  asc: boolean;
+  onSort: (c: ListSortCol) => void;
+}) {
+  const btnReset: CSSProperties = {
+    background: "none",
+    border: "none",
+    padding: "6px 8px 8px 0",
+    margin: 0,
+    font: "inherit",
+    fontWeight: 500,
+    fontSize: 11,
+    color: "var(--app-muted)",
+    cursor: "pointer",
+    textAlign: "left",
+    whiteSpace: "nowrap",
+    width: "100%",
+  };
+  return (
+    <th style={{ textAlign: "left", padding: 0, verticalAlign: "bottom" }}>
+      <button type="button" style={btnReset} onClick={() => onSort(col)} title={`Sort by ${label}`}>
+        {label}
+        {listSortMark(sortCol === col, asc)}
+      </button>
+    </th>
+  );
+}
+
 export default function ConsoleHome() {
   const [groups, setGroups] = useState<GroupInfo[]>([]);
   const [groupId, setGroupId] = useState<string | null>(() => localStorage.getItem("trimble_group_id"));
@@ -55,6 +153,8 @@ export default function ConsoleHome() {
   );
   const [tab, setTab] = useState<Tab>("list");
   const [sel, setSel] = useState<string | null>(null);
+  const [listSortCol, setListSortCol] = useState<ListSortCol>("serial");
+  const [listSortAsc, setListSortAsc] = useState(true);
 
   useEffect(() => {
     fetch("/api/config")
@@ -100,14 +200,31 @@ export default function ConsoleHome() {
     return () => ws.close();
   }, [groupId]);
 
+  const sortedReceivers = useMemo(() => {
+    const arr = receivers.slice();
+    arr.sort((a, b) => compareReceivers(a, b, listSortCol, listSortAsc));
+    return arr;
+  }, [receivers, listSortCol, listSortAsc]);
+
+  const handleListSort = useCallback((c: ListSortCol) => {
+    setListSortCol((prev) => {
+      if (prev !== c) {
+        setListSortAsc(defaultListSortAsc(c));
+        return c;
+      }
+      setListSortAsc((x) => !x);
+      return prev;
+    });
+  }, []);
+
   const selected = useMemo(
     () => receivers.find((r) => keyOf(r) === sel) ?? null,
     [receivers, sel]
   );
 
   const pickFirst = useCallback(() => {
-    if (receivers.length && !sel) setSel(keyOf(receivers[0]!));
-  }, [receivers, sel]);
+    if (sortedReceivers.length && !sel) setSel(keyOf(sortedReceivers[0]!));
+  }, [sortedReceivers, sel]);
 
   useEffect(() => {
     pickFirst();
@@ -254,19 +371,20 @@ export default function ConsoleHome() {
             <table>
               <thead>
                 <tr>
-                  <th>Serial</th>
-                  <th>Firmware</th>
-                  <th>Position type</th>
-                  <th>Power</th>
-                  <th>Logging</th>
-                  <th>Lat Long</th>
-                  <th>Status</th>
-                  <th>Mode</th>
-                  <th>Remote</th>
+                  {LIST_SORT_HEADERS.map(({ label, col }) => (
+                    <ReceiverListTh
+                      key={col}
+                      label={label}
+                      col={col}
+                      sortCol={listSortCol}
+                      asc={listSortAsc}
+                      onSort={handleListSort}
+                    />
+                  ))}
                 </tr>
               </thead>
               <tbody>
-                {receivers.map((r) => (
+                {sortedReceivers.map((r) => (
                   <tr key={keyOf(r)}>
                     <td>
                       <button
@@ -279,8 +397,11 @@ export default function ConsoleHome() {
                         }}
                         style={{ textAlign: "left", fontWeight: 600 }}
                       >
-                        {r.serial || "—"}
+                        {displaySerial(r)}
                       </button>
+                    </td>
+                    <td className="muted" style={{ fontSize: 13 }}>
+                      {listReceiverTypeDisplay(r)}
                     </td>
                     <td className="muted" style={{ fontSize: 12, whiteSpace: "nowrap" }}>
                       {listFirmwareDisplay(r)}
@@ -413,6 +534,88 @@ function listFirmwareDisplay(r: ReceiverSnapshot): string {
     return formatNavFirmwareHundredths(r.firmware_version);
   }
   return "—";
+}
+
+function compareReceivers(a: ReceiverSnapshot, b: ReceiverSnapshot, col: ListSortCol, asc: boolean): number {
+  const dir = asc ? 1 : -1;
+
+  function tieBreak(): number {
+    const s = sortKeySerial(a).localeCompare(sortKeySerial(b));
+    if (s !== 0) return s;
+    return keyOf(a).localeCompare(keyOf(b));
+  }
+
+  if (col !== "status") {
+    const pa = a.online ? 0 : 1;
+    const pb = b.online ? 0 : 1;
+    if (pa !== pb) return pa - pb;
+  }
+
+  let v = 0;
+  switch (col) {
+    case "serial":
+      v = sortKeySerial(a).localeCompare(sortKeySerial(b));
+      break;
+    case "receiver_type":
+      v = listReceiverTypeDisplay(a).localeCompare(listReceiverTypeDisplay(b));
+      break;
+    case "firmware":
+      v = listFirmwareDisplay(a).localeCompare(listFirmwareDisplay(b));
+      break;
+    case "position_type": {
+      const ac = a.has_position_type ? a.position_type : -999;
+      const bc = b.has_position_type ? b.position_type : -999;
+      v = ac - bc;
+      if (v === 0 && a.has_position_type && b.has_position_type) {
+        v = a.position_type_label.localeCompare(b.position_type_label);
+      }
+      break;
+    }
+    case "power": {
+      const aHas = a.has_power_logging && a.battery_percent != null && Number.isFinite(a.battery_percent);
+      const bHas = b.has_power_logging && b.battery_percent != null && Number.isFinite(b.battery_percent);
+      if (!aHas && !bHas) v = 0;
+      else if (!aHas) v = 1;
+      else if (!bHas) v = -1;
+      else v = a.battery_percent! - b.battery_percent!;
+      break;
+    }
+    case "logging": {
+      const aHas = a.has_power_logging && a.logging_hours_remain != null && a.logging_hours_remain > 0;
+      const bHas = b.has_power_logging && b.logging_hours_remain != null && b.logging_hours_remain > 0;
+      const av = a.logging_hours_remain ?? 0;
+      const bv = b.logging_hours_remain ?? 0;
+      if (!aHas && !bHas) v = 0;
+      else if (!aHas) v = 1;
+      else if (!bHas) v = -1;
+      else v = av - bv;
+      break;
+    }
+    case "lat_long": {
+      const al = a.has_llh ? a.lat_rad : Number.NEGATIVE_INFINITY;
+      const bl = b.has_llh ? b.lat_rad : Number.NEGATIVE_INFINITY;
+      v = al - bl;
+      if (v !== 0) break;
+      const ao = a.has_llh ? a.lon_rad : Number.NEGATIVE_INFINITY;
+      const bo = b.has_llh ? b.lon_rad : Number.NEGATIVE_INFINITY;
+      v = ao - bo;
+      break;
+    }
+    case "status":
+      v = (a.online ? 0 : 1) - (b.online ? 0 : 1);
+      break;
+    case "mode":
+      v = a.mode.localeCompare(b.mode);
+      break;
+    case "remote":
+      v = a.remote_addr.localeCompare(b.remote_addr);
+      break;
+    default:
+      v = 0;
+  }
+
+  if (v !== 0) return v * dir;
+  return tieBreak();
 }
 
 function formatListLogging(r: ReceiverSnapshot): string {
@@ -657,7 +860,6 @@ function streamVisual(r: ReceiverSnapshot): { cls: string; text: string; title: 
 function StatusPanel({ r }: { r: ReceiverSnapshot }) {
   const lat = r.has_llh ? (r.lat_rad * 180) / Math.PI : null;
   const lon = r.has_llh ? (r.lon_rad * 180) / Math.PI : null;
-  const receiverLabel = r.receiver_type?.trim() || r.firmware_version?.trim() || "—";
   const hoverLLH = r.has_llh ? positionHoverText(r.lat_rad, r.lon_rad, r.height_m) : undefined;
 
   const th: CSSProperties = {
@@ -715,7 +917,9 @@ function StatusPanel({ r }: { r: ReceiverSnapshot }) {
         <span>
           Serial <strong>{r.serial || "—"}</strong>
         </span>
-        <span className="muted">Receiver {receiverLabel}</span>
+        <span className="muted">
+          Receiver type <strong>{listReceiverTypeDisplay(r)}</strong>
+        </span>
         <span className="muted" style={{ fontSize: 12 }}>
           {r.remote_addr}
         </span>
