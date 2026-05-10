@@ -8,7 +8,20 @@ import { SVTrackingCard } from "./SVTrackingCard";
 import { ConfigForm } from "./ConfigForm";
 import { ThemeToggle } from "./ThemeToggle";
 
-type Tab = "list" | "map" | "detail";
+type Tab = "list" | "map" | "detail" | "configure";
+
+function tabLabel(t: Tab): string {
+  switch (t) {
+    case "list":
+      return "List";
+    case "map":
+      return "Map";
+    case "detail":
+      return "Detail";
+    case "configure":
+      return "Configure";
+  }
+}
 
 export default function ConsoleHome() {
   const [groups, setGroups] = useState<GroupInfo[]>([]);
@@ -185,18 +198,6 @@ export default function ConsoleHome() {
               ))}
             </select>
           </label>
-          <nav className="row">
-            {(["list", "map", "detail"] as Tab[]).map((t) => (
-              <button
-                key={t}
-                type="button"
-                onClick={() => setTab(t)}
-                className={`nav-tab${tab === t ? " active" : ""}`}
-              >
-                {t[0]!.toUpperCase() + t.slice(1)}
-              </button>
-            ))}
-          </nav>
           <Link to="/help">Help</Link>
           <ThemeToggle />
         </div>
@@ -210,7 +211,17 @@ export default function ConsoleHome() {
         </p>
       </header>
 
-      <main style={{ flex: 1, margin: "0 12px 12px", display: "flex", flexDirection: "column", gap: 12 }}>
+      <main
+        style={{
+          flex: 1,
+          minHeight: 0,
+          margin: "0 12px",
+          display: "flex",
+          flexDirection: "column",
+          gap: 12,
+          overflow: "auto",
+        }}
+      >
         {tab === "list" && (
           <div className="panel">
             <h2 style={{ marginTop: 0 }}>Receivers</h2>
@@ -325,15 +336,6 @@ export default function ConsoleHome() {
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
               <div className="panel">
-                <h2 style={{ marginTop: 0 }}>SV tracking</h2>
-                {!selected && <p className="muted">Select a receiver from the list or map.</p>}
-                {selected && selected.satellites?.length ? (
-                  <SVTrackingCard svs={selected.satellites} />
-                ) : selected ? (
-                  <p className="muted">No SV geometry (enable GSOF All SV Detail, record 34).</p>
-                ) : null}
-              </div>
-              <div className="panel">
                 <h2 style={{ marginTop: 0 }}>Sky plot</h2>
                 {!selected && <p className="muted">Select a receiver from the list or map.</p>}
                 {selected && selected.satellites?.length ? (
@@ -342,17 +344,54 @@ export default function ConsoleHome() {
                   <p className="muted">No SV geometry (enable GSOF All SV Detail, record 34).</p>
                 ) : null}
               </div>
-            </div>
-            <div className="panel" style={{ gridColumn: "1 / -1" }}>
-              <h2 style={{ marginTop: 0 }}>Configuration</h2>
-              {selected && groupId && (
-                <ConfigForm groupId={groupId} receiverKey={keyOf(selected)} mode={selected.mode} />
-              )}
-              {!selected && <p className="muted">Select a receiver.</p>}
+              <div className="panel">
+                <h2 style={{ marginTop: 0 }}>SV tracking</h2>
+                {!selected && <p className="muted">Select a receiver from the list or map.</p>}
+                {selected && selected.satellites?.length ? (
+                  <SVTrackingCard svs={selected.satellites} />
+                ) : selected ? (
+                  <p className="muted">No SV geometry (enable GSOF All SV Detail, record 34).</p>
+                ) : null}
+              </div>
             </div>
           </div>
         )}
+
+        {tab === "configure" && (
+          <div className="panel" style={{ flex: 1, minHeight: 320 }}>
+            <h2 style={{ marginTop: 0 }}>Configuration</h2>
+            {!selected && <p className="muted">Select a receiver from the list or map.</p>}
+            {selected && groupId ? (
+              <ConfigForm groupId={groupId} receiverKey={keyOf(selected)} mode={selected.mode} />
+            ) : null}
+          </div>
+        )}
       </main>
+
+      <footer className="panel footer-tab-bar" style={{ margin: "0 12px 12px", flexShrink: 0 }}>
+        <nav className="row" style={{ gap: 8, flexWrap: "wrap" }}>
+          {(["list", "map", "detail", "configure"] as Tab[]).map((t) => (
+            <button
+              key={t}
+              type="button"
+              onClick={() => setTab(t)}
+              className={`nav-tab${tab === t ? " active" : ""}`}
+              style={
+                t === "configure" && selected?.mode === "read_only"
+                  ? { opacity: 0.55 }
+                  : undefined
+              }
+              title={
+                t === "configure" && selected?.mode === "read_only"
+                  ? "Receiver session is read-only"
+                  : undefined
+              }
+            >
+              {tabLabel(t)}
+            </button>
+          ))}
+        </nav>
+      </footer>
     </div>
   );
 }
@@ -517,9 +556,6 @@ function RadioInfoCard({ ri }: { ri: RadioInfo }) {
   return (
     <div className="status-card">
       <h3 className="status-card-title mixed-case">Radio information</h3>
-      <p className="muted" style={{ margin: "0 0 10px 0", fontSize: 12 }}>
-        GSOF 57
-      </p>
       <dl style={dlStyle}>
         <dt className="muted" style={{ margin: 0 }}>
           GPS time
@@ -638,6 +674,21 @@ function StatusPanel({ r }: { r: ReceiverSnapshot }) {
     color: "var(--mono-dim)",
     whiteSpace: "nowrap",
   };
+  const metricTh: CSSProperties = {
+    textAlign: "center",
+    fontWeight: 500,
+    fontSize: 11,
+    color: "var(--app-muted)",
+    padding: "6px 8px",
+    borderBottom: "1px solid var(--table-border)",
+  };
+  const metricTd: CSSProperties = {
+    textAlign: "center",
+    padding: "8px 8px",
+    fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
+    fontSize: 13,
+    borderBottom: "1px solid var(--table-border)",
+  };
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
@@ -669,11 +720,22 @@ function StatusPanel({ r }: { r: ReceiverSnapshot }) {
       {/* Position — first */}
       <div className="status-card">
         <h3 className="status-card-title">Position</h3>
-        <div style={{ marginBottom: 14 }}>
-          <div className="muted" style={{ fontSize: 11, marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.04em" }}>
+        <div
+          style={{
+            marginBottom: 14,
+            display: "flex",
+            flexWrap: "wrap",
+            alignItems: "baseline",
+            gap: "6px 10px",
+          }}
+        >
+          <span
+            className="muted"
+            style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.04em", whiteSpace: "nowrap" }}
+          >
             Time
-          </div>
-          <div style={{ fontFamily: "ui-monospace, monospace", fontSize: 14 }}>{formatSolutionTime(r)}</div>
+          </span>
+          <span style={{ fontFamily: "ui-monospace, monospace", fontSize: 14 }}>{formatSolutionTime(r)}</span>
         </div>
 
         {r.has_llh && lat != null && lon != null ? (
@@ -735,16 +797,30 @@ function StatusPanel({ r }: { r: ReceiverSnapshot }) {
         {(r.has_sigma || r.has_dop) && (
           <div style={{ marginTop: 10, fontSize: 13 }}>
             {r.has_sigma && (
-              <div>
+              <div style={{ marginBottom: r.has_dop ? 10 : 0 }}>
                 <span className="muted">RMS </span>
                 <strong>{r.position_rms_m.toFixed(3)}</strong> m
               </div>
             )}
             {r.has_dop && (
-              <div className="muted" style={{ marginTop: 6, fontSize: 12 }}>
-                PDOP {r.pdop.toFixed(2)} · HDOP {r.hdop.toFixed(2)} · VDOP {r.vdop.toFixed(2)} · TDOP{" "}
-                {r.tdop.toFixed(2)}
-              </div>
+              <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                <thead>
+                  <tr>
+                    <th style={metricTh}>PDOP</th>
+                    <th style={metricTh}>HDOP</th>
+                    <th style={metricTh}>VDOP</th>
+                    <th style={metricTh}>TDOP</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td style={metricTd}>{r.pdop.toFixed(2)}</td>
+                    <td style={metricTd}>{r.hdop.toFixed(2)}</td>
+                    <td style={metricTd}>{r.vdop.toFixed(2)}</td>
+                    <td style={metricTd}>{r.tdop.toFixed(2)}</td>
+                  </tr>
+                </tbody>
+              </table>
             )}
           </div>
         )}
@@ -755,12 +831,36 @@ function StatusPanel({ r }: { r: ReceiverSnapshot }) {
               marginTop: 12,
               paddingTop: 12,
               borderTop: "1px solid var(--table-border)",
-              fontSize: 14,
             }}
           >
-            <span className="muted" style={{ fontSize: 12 }}>Velocity </span>
-            Horizontal {r.horizontal_vel_ms.toFixed(3)} m/s · Vertical {r.vertical_vel_ms.toFixed(3)} m/s · Heading{" "}
-            {((r.heading_rad * 180) / Math.PI).toFixed(2)}°
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }} aria-label="Velocity">
+              <caption
+                style={{
+                  captionSide: "top",
+                  textAlign: "left",
+                  padding: "0 0 8px",
+                  fontSize: 12,
+                  color: "var(--app-muted)",
+                  lineHeight: 1.35,
+                }}
+              >
+                Kinematic velocity from GSOF record 8 — horizontal and vertical speed plus heading.
+              </caption>
+              <thead>
+                <tr>
+                  <th style={metricTh}>Horizontal (m/s)</th>
+                  <th style={metricTh}>Vertical (m/s)</th>
+                  <th style={metricTh}>Heading (°)</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td style={metricTd}>{r.horizontal_vel_ms.toFixed(3)}</td>
+                  <td style={metricTd}>{r.vertical_vel_ms.toFixed(3)}</td>
+                  <td style={metricTd}>{((r.heading_rad * 180) / Math.PI).toFixed(2)}</td>
+                </tr>
+              </tbody>
+            </table>
           </div>
         )}
       </div>

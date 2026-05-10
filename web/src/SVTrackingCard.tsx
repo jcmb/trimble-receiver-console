@@ -2,18 +2,50 @@ import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import type { SVInfo } from "./types";
 import { SV_SYSTEM_NAMES, sysIndex, trackedSatellitesForSky } from "./svSkyShared";
 
-function cmpSkySv(a: SVInfo, b: SVInfo): number {
-  if (b.elevation_deg !== a.elevation_deg) {
-    return b.elevation_deg - a.elevation_deg;
-  }
+type SortCol = "system" | "prn" | "elev" | "azim" | "cn0" | "position" | "rtk";
+
+function cmpTie(a: SVInfo, b: SVInfo): number {
   const ia = sysIndex(a);
   const ib = sysIndex(b);
   if (ia !== ib) return ia - ib;
   return a.prn - b.prn;
 }
 
+function compareSv(a: SVInfo, b: SVInfo, col: SortCol, asc: boolean): number {
+  let v = 0;
+  switch (col) {
+    case "system":
+      v = SV_SYSTEM_NAMES[sysIndex(a)].localeCompare(SV_SYSTEM_NAMES[sysIndex(b)]);
+      break;
+    case "prn":
+      v = a.prn - b.prn;
+      break;
+    case "elev":
+      v = a.elevation_deg - b.elevation_deg;
+      break;
+    case "azim":
+      v = a.azimuth_deg - b.azimuth_deg;
+      break;
+    case "cn0":
+      v = a.cn0_db_hz - b.cn0_db_hz;
+      break;
+    case "position":
+      v = Number(a.used_in_position) - Number(b.used_in_position);
+      break;
+    case "rtk":
+      v = Number(a.used_in_rtk) - Number(b.used_in_rtk);
+      break;
+    default:
+      v = 0;
+  }
+  if (v !== 0) {
+    return asc ? v : -v;
+  }
+  return cmpTie(a, b);
+}
+
 export function SVTrackingCard({ svs }: { svs: SVInfo[] }) {
-  const tracked = useMemo(() => trackedSatellitesForSky(svs).slice().sort(cmpSkySv), [svs]);
+  const tracked = useMemo(() => trackedSatellitesForSky(svs), [svs]);
 
   const activeSysIndices = useMemo(() => {
     const seen = new Set<number>();
@@ -31,6 +63,9 @@ export function SVTrackingCard({ svs }: { svs: SVInfo[] }) {
   type PanelTab = "all" | number;
   const [panelTab, setPanelTab] = useState<PanelTab>("all");
 
+  const [sortCol, setSortCol] = useState<SortCol>("elev");
+  const [sortAsc, setSortAsc] = useState(false);
+
   useEffect(() => {
     if (panelTab === "all") return;
     if (typeof panelTab === "number" && !activeSysIndices.includes(panelTab)) {
@@ -38,21 +73,54 @@ export function SVTrackingCard({ svs }: { svs: SVInfo[] }) {
     }
   }, [panelTab, activeSysIndices]);
 
-  const visibleList = useMemo(() => {
+  const filteredList = useMemo(() => {
     if (panelTab === "all") return tracked;
     return tracked.filter((sv) => sysIndex(sv) === panelTab);
   }, [tracked, panelTab]);
+
+  const sortedList = useMemo(() => {
+    const arr = filteredList.slice();
+    arr.sort((a, b) => compareSv(a, b, sortCol, sortAsc));
+    return arr;
+  }, [filteredList, sortCol, sortAsc]);
+
+  function onSort(col: SortCol) {
+    if (sortCol === col) {
+      setSortAsc(!sortAsc);
+    } else {
+      setSortCol(col);
+      setSortAsc(col === "system" || col === "position");
+    }
+  }
+
+  const btnReset: CSSProperties = {
+    background: "none",
+    border: "none",
+    padding: "6px 10px 8px 0",
+    margin: 0,
+    font: "inherit",
+    fontWeight: 500,
+    fontSize: 11,
+    color: "var(--app-muted)",
+    cursor: "pointer",
+    textAlign: "inherit",
+    whiteSpace: "nowrap",
+    width: "100%",
+  };
 
   const th: CSSProperties = {
     textAlign: "left",
     fontWeight: 500,
     fontSize: 11,
     color: "var(--app-muted)",
-    padding: "6px 10px 8px 0",
+    padding: 0,
     borderBottom: "1px solid var(--table-border)",
     whiteSpace: "nowrap",
+    verticalAlign: "bottom",
   };
-  const thNum: CSSProperties = { ...th, textAlign: "right", paddingLeft: 8 };
+
+  const sortMark = (col: SortCol) => (sortCol === col ? (sortAsc ? " ↑" : " ↓") : "");
+
   const td: CSSProperties = {
     padding: "6px 10px 6px 0",
     fontSize: 13,
@@ -81,7 +149,8 @@ export function SVTrackingCard({ svs }: { svs: SVInfo[] }) {
   return (
     <>
       <p style={{ fontSize: 12, color: "var(--app-muted)", margin: "0 0 12px", lineHeight: 1.4 }}>
-        Same fields as the sky plot hover. Tabs list only constellations with at least one satellite in view.
+        Same fields as the sky plot hover. Tabs list only constellations with at least one satellite in view. Click a
+        column header to sort.
       </p>
       <div className="row" style={{ gap: 8, marginBottom: 12, flexWrap: "wrap" }}>
         <button
@@ -106,17 +175,45 @@ export function SVTrackingCard({ svs }: { svs: SVInfo[] }) {
         <table style={{ width: "100%", borderCollapse: "collapse", margin: 0 }}>
           <thead>
             <tr>
-              <th style={th}>System</th>
-              <th style={{ ...th, textAlign: "right" }}>PRN</th>
-              <th style={thNum}>Elev°</th>
-              <th style={thNum}>Azim°</th>
-              <th style={thNum}>C/N₀</th>
-              <th style={{ ...th, paddingLeft: 12 }}>Position</th>
-              <th style={{ ...th, paddingLeft: 12 }}>RTK</th>
+              <th style={{ ...th, textAlign: "left" }}>
+                <button type="button" style={{ ...btnReset, textAlign: "left" }} onClick={() => onSort("system")}>
+                  System{sortMark("system")}
+                </button>
+              </th>
+              <th style={{ ...th, textAlign: "right", paddingLeft: 8 }}>
+                <button type="button" style={{ ...btnReset, textAlign: "right", paddingLeft: 8 }} onClick={() => onSort("prn")}>
+                  PRN{sortMark("prn")}
+                </button>
+              </th>
+              <th style={{ ...th, textAlign: "right", paddingLeft: 8 }}>
+                <button type="button" style={{ ...btnReset, textAlign: "right", paddingLeft: 8 }} onClick={() => onSort("elev")}>
+                  Elev°{sortMark("elev")}
+                </button>
+              </th>
+              <th style={{ ...th, textAlign: "right", paddingLeft: 8 }}>
+                <button type="button" style={{ ...btnReset, textAlign: "right", paddingLeft: 8 }} onClick={() => onSort("azim")}>
+                  Azim°{sortMark("azim")}
+                </button>
+              </th>
+              <th style={{ ...th, textAlign: "right", paddingLeft: 8 }}>
+                <button type="button" style={{ ...btnReset, textAlign: "right", paddingLeft: 8 }} onClick={() => onSort("cn0")}>
+                  C/N₀{sortMark("cn0")}
+                </button>
+              </th>
+              <th style={{ ...th, paddingLeft: 12 }}>
+                <button type="button" style={{ ...btnReset, textAlign: "left", paddingLeft: 12 }} onClick={() => onSort("position")}>
+                  Position{sortMark("position")}
+                </button>
+              </th>
+              <th style={{ ...th, paddingLeft: 12 }}>
+                <button type="button" style={{ ...btnReset, textAlign: "left", paddingLeft: 12 }} onClick={() => onSort("rtk")}>
+                  RTK{sortMark("rtk")}
+                </button>
+              </th>
             </tr>
           </thead>
           <tbody>
-            {visibleList.map((sv) => {
+            {sortedList.map((sv) => {
               const si = sysIndex(sv);
               return (
                 <tr key={`${si}-${sv.prn}`}>
@@ -125,9 +222,7 @@ export function SVTrackingCard({ svs }: { svs: SVInfo[] }) {
                   <td style={tdNum}>{sv.elevation_deg.toFixed(0)}</td>
                   <td style={tdNum}>{sv.azimuth_deg.toFixed(0)}</td>
                   <td style={tdNum}>{sv.cn0_db_hz.toFixed(1)}</td>
-                  <td style={{ ...td, paddingLeft: 12 }}>
-                    {sv.used_in_position ? "Used" : "Not used"}
-                  </td>
+                  <td style={{ ...td, paddingLeft: 12 }}>{sv.used_in_position ? "Used" : "Not used"}</td>
                   <td style={{ ...tdMono, paddingLeft: 12 }}>{sv.used_in_rtk ? "Yes" : "—"}</td>
                 </tr>
               );
