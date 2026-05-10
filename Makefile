@@ -1,5 +1,7 @@
 .PHONY: all web server linux-all linux-amd64 linux-arm64 linux-arm
-all: server
+# Default: build embedded UI once, then Linux binaries for amd64, arm64, and arm.
+# Use `make server` for a single native (host OS/arch) binary at bin/trimble-console.
+all: linux-all
 
 # Set at link time; defaults to git describe (commit + dirty suffix) or "dev"
 VERSION ?= $(shell git describe --always --dirty 2>/dev/null || echo dev)

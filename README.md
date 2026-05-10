@@ -29,12 +29,14 @@ Receivers that have disconnected stay in the UI as **offline** until **7 days** 
 ## Build
 
 ```bash
-make   # npm ci && vite build + go build -> bin/trimble-console
+make   # npm ci && vite build + cross-compile -> bin/trimble-console-linux-{amd64,arm64,arm}
 ```
 
-Or, after a web build once:
+Native binary for the host OS/arch (after a web build):
 
 ```bash
+make server   # also produces bin/trimble-console
+# or, after `make web` once:
 go build -o bin/trimble-console ./cmd/server
 ```
 
