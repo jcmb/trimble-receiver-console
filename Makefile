@@ -1,5 +1,6 @@
 .PHONY: all web server linux-all linux-amd64 linux-arm64 linux-arm
-all: server
+# Default: embedded UI + Linux amd64, arm64, arm (see `make server` for native host binary only).
+all: linux-all
 
 # Set at link time; defaults to git describe (commit + dirty suffix) or "dev"
 VERSION ?= $(shell git describe --always --dirty 2>/dev/null || echo dev)

@@ -1,6 +1,7 @@
 package session
 
 import (
+	"strings"
 	"sync"
 	"time"
 
@@ -76,7 +77,7 @@ type ReceiverSnapshot struct {
 	PositionType      int       `json:"position_type"`
 	PositionTypeLabel string    `json:"position_type_label"`
 	HasPositionType   bool      `json:"has_position_type"`
-	// Solution epoch from GSOF time records (0x10 UTC preferred over 0x01 / 0x3E GPS week).
+	// Solution epoch from GSOF time records (0x10 UTC preferred over 0x01 GPS week/ms).
 	SolutionTime    time.Time `json:"solution_time,omitempty"`
 	TimeSource      string    `json:"time_source,omitempty"` // UTC | GPS
 	SolutionGPSWeek int       `json:"solution_gps_week,omitempty"`
@@ -130,6 +131,61 @@ type ReceiverSnapshot struct {
 	// Last config applied (intent), for UI
 	LastConfigJSON string `json:"last_config_json,omitempty"`
 	ConfigStatus   string `json:"config_status,omitempty"`
+	// SerialConnectionCount is lifetime TCP sessions that identified this receiver (per identity key); set when encoding API responses.
+	SerialConnectionCount int64 `json:"serial_connection_count,omitempty"`
+}
+
+// HasReceiverDetails reports whether the snapshot has identifying or telemetry data beyond a bare TCP attach.
+func HasReceiverDetails(s *ReceiverSnapshot) bool {
+	if s == nil {
+		return false
+	}
+	if strings.TrimSpace(s.Serial) != "" {
+		return true
+	}
+	if s.DCOLRetSerial != nil {
+		return true
+	}
+	if s.GSOFReportCount > 0 {
+		return true
+	}
+	return false
+}
+
+// ReceiverIdentityKey matches list deduplication: DCOL long serial, else GSOF serial, else anon:remote_addr.
+func ReceiverIdentityKey(v *ReceiverSnapshot) string {
+	if v.DCOLRetSerial != nil {
+		if ls := strings.TrimSpace(v.DCOLRetSerial.LongSerial); ls != "" {
+			return "sn:" + strings.ToLower(ls)
+		}
+		if sh := strings.TrimSpace(v.DCOLRetSerial.ReceiverSerialShort); sh != "" {
+			return "sn:" + strings.ToLower(sh)
+		}
+	}
+	if s := strings.TrimSpace(v.Serial); s != "" {
+		return "sn:" + strings.ToLower(s)
+	}
+	return "anon:" + v.RemoteAddr
+}
+
+// preferReceiverSnapshot returns true if a should replace b in the dedupe map (newer connection wins).
+func preferReceiverSnapshot(a, b *ReceiverSnapshot) bool {
+	if b == nil {
+		return true
+	}
+	if a == nil {
+		return false
+	}
+	if a.FirstSeen.After(b.FirstSeen) {
+		return true
+	}
+	if b.FirstSeen.After(a.FirstSeen) {
+		return false
+	}
+	if a.Online != b.Online {
+		return a.Online
+	}
+	return a.LastUpdate.After(b.LastUpdate)
 }
 
 // Store holds snapshots keyed by serial (or temporary connection id).
@@ -168,6 +224,64 @@ func (s *Store) List() []*ReceiverSnapshot {
 	return out
 }
 
+// ListUniqueBySerial returns one snapshot per receiver identity: long serial (DCOL) or GSOF serial,
+// falling back to anon:remote_addr. When duplicates exist, the most recently connected row wins (FirstSeen).
+func (s *Store) ListUniqueBySerial() []*ReceiverSnapshot {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	best := make(map[string]*ReceiverSnapshot)
+	for _, v := range s.data {
+		if v == nil {
+			continue
+		}
+		k := ReceiverIdentityKey(v)
+		if prev := best[k]; preferReceiverSnapshot(v, prev) {
+			best[k] = v
+		}
+	}
+	out := make([]*ReceiverSnapshot, 0, len(best))
+	for _, v := range best {
+		out = append(out, v)
+	}
+	return out
+}
+
+// PurgeUndetailed removes bare connections that never gained serial, DCOL RET SERIAL, or GSOF within
+// minAge of FirstSeen. Online sessions are closed first; store rows are removed once offline (or immediately if already offline).
+func (s *Store) PurgeUndetailed(reg *Registry, now time.Time, minAge time.Duration) (closed, deleted int) {
+	s.mu.Lock()
+	keys := make([]string, 0, len(s.data))
+	for k, v := range s.data {
+		if v == nil || HasReceiverDetails(v) {
+			continue
+		}
+		if now.Sub(v.FirstSeen) < minAge {
+			continue
+		}
+		keys = append(keys, k)
+	}
+	s.mu.Unlock()
+
+	for _, k := range keys {
+		v, ok := s.Get(k)
+		if !ok || v == nil || HasReceiverDetails(v) {
+			continue
+		}
+		if now.Sub(v.FirstSeen) < minAge {
+			continue
+		}
+		cs := reg.Find(k)
+		if cs != nil && v.Online {
+			_ = cs.CloseConn()
+			closed++
+			continue
+		}
+		s.Delete(k)
+		deleted++
+	}
+	return closed, deleted
+}
+
 func (s *Store) Delete(serial string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -191,7 +305,7 @@ func (s *Store) PurgeOfflineBefore(cutoff time.Time) int {
 	return n
 }
 
-// PositionFixLabels maps GSOF position type byte (records 38 / 62) to the official
+// PositionFixLabels maps GSOF position type byte (record 38 / type 0x26) to the official
 // “Position Fix Type” plate name. Codes 0–51 per Trimble GSOF documentation.
 var PositionFixLabels = map[int]string{
 	0:  "No Fix or Old Position Fix",

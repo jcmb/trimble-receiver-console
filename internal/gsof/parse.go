@@ -6,6 +6,8 @@ import (
 	"math"
 	"strings"
 	"time"
+
+	"github.com/gkirk/dcol"
 )
 
 // WalkRecords invokes fn for each GSOF sub-record in a flattened buffer.
@@ -44,7 +46,7 @@ func readInt32BE(b []byte) (int32, bool) {
 	return int32(binary.BigEndian.Uint32(b)), true
 }
 
-// ParseLLHType2 — record 0x02, 24-byte payload: lat, lon, height doubles (radians, radians, meters).
+// ParseLLHType2 — record 0x02 (Position LL): three IEEE doubles big-endian (rad, rad, m), 24 bytes.
 func ParseLLHType2(payload []byte) (lat, lon, h float64, ok bool) {
 	if len(payload) < 24 {
 		return 0, 0, 0, false
@@ -53,23 +55,6 @@ func ParseLLHType2(payload []byte) (lat, lon, h float64, ok bool) {
 	lon, _ = readFloat64BE(payload[8:16])
 	h, _ = readFloat64BE(payload[16:24])
 	return lat, lon, h, true
-}
-
-// ParseCodeLLHType62 — record 0x3E: position type + LLH + GPS week/ms when present.
-func ParseCodeLLHType62(payload []byte) (posType int, lat, lon, h float64, gpsWeek int, gpsMs int32, hasTime bool, ok bool) {
-	if len(payload) < 27 {
-		return 0, 0, 0, 0, 0, 0, false, false
-	}
-	posType = int(payload[0])
-	lat, _ = readFloat64BE(payload[1:9])
-	lon, _ = readFloat64BE(payload[9:17])
-	h, _ = readFloat64BE(payload[17:25])
-	if len(payload) >= 33 {
-		gpsWeek = int(binary.BigEndian.Uint16(payload[27:29]))
-		gpsMs = int32(binary.BigEndian.Uint32(payload[29:33]))
-		hasTime = true
-	}
-	return posType, lat, lon, h, gpsWeek, gpsMs, hasTime, true
 }
 
 // ParseECEFDeltaType6 — record 0x06, 24 bytes: dX,dY,dZ doubles meters.
@@ -300,16 +285,20 @@ type DetailSV struct {
 func Flags1UsedInPos(f byte) bool { return f&0x40 != 0 }
 func Flags1UsedInRTK(f byte) bool { return f&0x80 != 0 }
 
-// ParsePositionType38 — record 0x26 (38 decimal). POSITION TYPE is last byte; NETWORK_FLAGS2 at index 13 when present (xFill bit0).
-func ParsePositionType38(payload []byte) (posType int, networkFlags2 byte, hasNet2 bool, ok bool) {
-	if len(payload) < 1 {
-		return 0, 0, false, false
+// ParsePositionType38 — record 0x26 (38 decimal). Layout varies by firmware; decode via dcol.DecodeGSOFPositionTypeInformation.
+// Position fix type exists only when the payload includes the full known tail (dcol.GSOFPositionTypeInformationMinLenFullKnown bytes).
+func ParsePositionType38(payload []byte) (posType int, networkFlags2 byte, hasNet2 bool, hasPositionType bool, ok bool) {
+	if len(payload) < dcol.GSOFPositionTypeInformationMinLenThroughNetworkFlags {
+		return 0, 0, false, false, false
 	}
-	posType = int(payload[len(payload)-1])
-	if len(payload) >= 14 {
-		return posType, payload[13], true, true
+	info, _ := dcol.DecodeGSOFPositionTypeInformation(payload)
+	hasNet2 = len(payload) >= 12
+	if hasNet2 {
+		networkFlags2 = info.NetworkFlags2
 	}
-	return posType, 0, false, true
+	hasPositionType = len(payload) >= dcol.GSOFPositionTypeInformationMinLenFullKnown
+	posType = int(info.PositionFixType)
+	return posType, networkFlags2, hasNet2, hasPositionType, true
 }
 
 // ParseTimeType1 — record 0x01 position time (GPS week + ms of week).

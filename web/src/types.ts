@@ -179,6 +179,8 @@ export type ReceiverSnapshot = {
   last_config_json?: string;
   config_status?: string;
   dcol_ret_serial?: DCOLRetSerial;
+  /** Lifetime TCP sessions that identified this receiver (same identity key as list dedupe). */
+  serial_connection_count?: number;
 };
 
 export type GroupInfo = {

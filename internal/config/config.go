@@ -39,6 +39,8 @@ type Config struct {
 
 	DefaultMode Mode `yaml:"default_mode"`
 	IgnoreTCPGSOFTransmissionGap1 bool `yaml:"ignore_tcp_gsof_transmission_gap1"`
+	// VerboseGSOF logs each GSOF report's record-type histogram and LLH (0x02) decode steps to stderr.
+	VerboseGSOF bool `yaml:"verbose_gsof"`
 	CORSOrigins []string `yaml:"cors_origins"`
 	MapTileURL  string   `yaml:"map_tile_url"`
 }
@@ -51,6 +53,7 @@ func Default() *Config {
 		Groups:                        nil,
 		DefaultMode:                   ModeReadWrite,
 		IgnoreTCPGSOFTransmissionGap1: true,
+		VerboseGSOF:                   false,
 		CORSOrigins:                   []string{"*"},
 		MapTileURL:                    "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
 	}
