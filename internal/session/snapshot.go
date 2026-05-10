@@ -4,6 +4,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gkirk/trimble-receiver-console/internal/dcolserial"
 	"github.com/gkirk/trimble-receiver-console/internal/gsof"
 )
 
@@ -14,6 +15,18 @@ const (
 	ModeReadOnly  Mode = "read_only"
 	ModeReadWrite Mode = "read_write"
 )
+
+// EffectiveSnapshotMode is the mode exposed to API clients: read_write only when the session
+// is configured for writes and a DCOL RET SERIAL (07h) reply has been received (bidirectional DCOL).
+func EffectiveSnapshotMode(configured Mode, hasDCOLSerialReply bool) Mode {
+	if configured == ModeReadOnly {
+		return ModeReadOnly
+	}
+	if !hasDCOLSerialReply {
+		return ModeReadOnly
+	}
+	return ModeReadWrite
+}
 
 // SVInfo is one satellite for sky plot and counts.
 type SVInfo struct {
@@ -31,6 +44,11 @@ type SVInfo struct {
 	UsedInRTK bool     `json:"used_in_rtk"`
 }
 
+// DCOLRetSerialSnapshot merges parsed RETSERIAL fields with ingest metadata for the API.
+type DCOLRetSerialSnapshot struct {
+	dcolserial.RetSerialInfo
+	ReceivedAt time.Time `json:"received_at"`
+}
 // ReceiverSnapshot is JSON-serialized to API/WebSocket clients.
 type ReceiverSnapshot struct {
 	GroupID           string    `json:"group_id"`
@@ -67,6 +85,8 @@ type ReceiverSnapshot struct {
 	BasePositionQuality *gsof.BasePositionQualityInfo `json:"base_position_quality,omitempty"`
 	// GSOF 57 — radio information
 	RadioInfo *gsof.RadioInfo `json:"radio_info,omitempty"`
+	// DCOL report 07h RETSERIAL (reply to command 06h GETSERIAL) — normal DCOL, not GSOF.
+	DCOLRetSerial *DCOLRetSerialSnapshot `json:"dcol_ret_serial,omitempty"`
 	// xFill hints from position type extended (GSOF 0x26 NETWORK_FLAGS2 when present)
 	XFillPresent bool `json:"xfill_present,omitempty"`
 	XFillReady   bool `json:"xfill_ready,omitempty"`

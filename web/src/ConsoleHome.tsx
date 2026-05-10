@@ -697,6 +697,70 @@ function StatusPanel({ r }: { r: ReceiverSnapshot }) {
         </span>
       </div>
 
+      {/* DCOL 06h/07h — connection-time query; cyclic DCOL TBD */}
+      <div className="status-card">
+        <h3 className="status-card-title mixed-case">Receiver & antenna (DCOL)</h3>
+        <p className="muted" style={{ fontSize: 12, margin: "0 0 10px", lineHeight: 1.45 }}>
+          Trimble DCOL (not GSOF): this console sends command <code style={{ fontSize: "0.95em" }}>06h</code> GET SERIAL when
+          the TCP session starts; the receiver replies with <code style={{ fontSize: "0.95em" }}>07h</code> RET SERIAL.
+        </p>
+        {!r.dcol_ret_serial && r.online && (
+          <p className="muted" style={{ margin: 0, fontSize: 13 }}>
+            Waiting for RET SERIAL (07h)…
+          </p>
+        )}
+        {!r.dcol_ret_serial && !r.online && <p className="muted" style={{ margin: 0, fontSize: 13 }}>—</p>}
+        {r.dcol_ret_serial && (
+          <>
+            <p className="muted" style={{ fontSize: 11, margin: "0 0 8px" }}>
+              Received {new Date(r.dcol_ret_serial.received_at).toLocaleString()}
+            </p>
+            <table style={{ width: "100%", borderCollapse: "collapse" }}>
+              <tbody>
+                <tr>
+                  <td style={tdL}>Long serial</td>
+                  <td style={tdV}>{r.dcol_ret_serial.long_serial?.trim() || "—"}</td>
+                </tr>
+                <tr>
+                  <td style={tdL}>Serial (8-char)</td>
+                  <td style={tdV}>{r.dcol_ret_serial.receiver_serial_short?.trim() || "—"}</td>
+                </tr>
+                <tr>
+                  <td style={tdL}>Receiver type</td>
+                  <td style={tdV}>{r.dcol_ret_serial.receiver_type?.trim() || "—"}</td>
+                </tr>
+                <tr>
+                  <td style={tdL}>Firmware</td>
+                  <td style={tdV}>
+                    Nav {r.dcol_ret_serial.nav_processor_version?.trim() || "—"} · Sig{" "}
+                    {r.dcol_ret_serial.sig_processor_version?.trim() || "—"} · Boot{" "}
+                    {r.dcol_ret_serial.boot_rom_version?.trim() || "—"}
+                  </td>
+                </tr>
+                <tr>
+                  <td style={tdL}>Antenna</td>
+                  <td style={tdV}>
+                    {r.dcol_ret_serial.antenna_serial?.trim() || "—"} ({r.dcol_ret_serial.antenna_type?.trim() || "—"})
+                  </td>
+                </tr>
+                <tr>
+                  <td style={tdL}>Channels</td>
+                  <td style={tdV}>
+                    Total {r.dcol_ret_serial.channels_total ?? "—"} · L1-only {r.dcol_ret_serial.channels_l1_only ?? "—"} ·
+                    Usable {r.dcol_ret_serial.usable_channels ?? "—"} · Physical {r.dcol_ret_serial.physical_channels ?? "—"} ·
+                    Simult. {r.dcol_ret_serial.simultaneous_track ?? "—"}
+                  </td>
+                </tr>
+                <tr>
+                  <td style={tdL}>Antenna INI</td>
+                  <td style={tdV}>{r.dcol_ret_serial.antenna_ini_version?.trim() || "—"}</td>
+                </tr>
+              </tbody>
+            </table>
+          </>
+        )}
+      </div>
+
       {/* Position — first */}
       <div className="status-card">
         <h3 className="status-card-title">Position</h3>

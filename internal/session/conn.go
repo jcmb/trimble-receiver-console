@@ -12,6 +12,7 @@ import (
 	"github.com/gkirk/dcol"
 
 	appcfg "github.com/gkirk/trimble-receiver-console/internal/config"
+	"github.com/gkirk/trimble-receiver-console/internal/dcolserial"
 	"github.com/gkirk/trimble-receiver-console/internal/trimble"
 	trimblecfg "github.com/gkirk/trimble-receiver-console/internal/trimble/configencode"
 )
@@ -38,9 +39,9 @@ type ConnSession struct {
 
 func NewConnSession(c net.Conn, gr *GroupRuntime, cfg *appcfg.Config) *ConnSession {
 	key := "anon:" + c.RemoteAddr().String()
-	mode := Mode(cfg.DefaultMode)
-	if mode != ModeReadOnly && mode != ModeReadWrite {
-		mode = ModeReadWrite
+	configured := Mode(cfg.DefaultMode)
+	if configured != ModeReadOnly && configured != ModeReadWrite {
+		configured = ModeReadWrite
 	}
 	now := time.Now()
 	snap := &ReceiverSnapshot{
@@ -48,7 +49,7 @@ func NewConnSession(c net.Conn, gr *GroupRuntime, cfg *appcfg.Config) *ConnSessi
 		FirstSeen:  now,
 		Serial:     "",
 		RemoteAddr: c.RemoteAddr().String(),
-		Mode:       mode,
+		Mode:       EffectiveSnapshotMode(configured, false),
 		Online:     true,
 		LastUpdate: now,
 		SVs:        nil,
@@ -61,7 +62,7 @@ func NewConnSession(c net.Conn, gr *GroupRuntime, cfg *appcfg.Config) *ConnSessi
 		store:    gr.Store,
 		cfg:      cfg,
 		parser:   trimble.NewDCOLParser(),
-		mode:     mode,
+		mode:     configured,
 		openedAt: now,
 	}
 }
@@ -73,6 +74,7 @@ func (s *ConnSession) Run() {
 		s.conn.Close()
 	}()
 	buf := make([]byte, 32*1024)
+	s.sendStartupDCOLQueries()
 	for {
 		n, err := s.conn.Read(buf)
 		if n > 0 {
@@ -124,16 +126,6 @@ func isCloseError(err error) bool {
 }
 
 func (s *ConnSession) handleMessage(m dcol.Message) {
-	if len(m.GSOFBuffer) == 0 {
-		return
-	}
-	s.mu.Lock()
-	if !s.gsofSeenLogged {
-		log.Printf("Receiving GSOF reports group_id=%q store_key=%s", s.group.ID, s.storeKey)
-		s.gsofSeenLogged = true
-	}
-	s.mu.Unlock()
-
 	snap, _ := s.store.Get(s.storeKey)
 	if snap == nil {
 		t := time.Now()
@@ -141,7 +133,7 @@ func (s *ConnSession) handleMessage(m dcol.Message) {
 			GroupID:    s.group.ID,
 			FirstSeen:  t,
 			RemoteAddr: s.conn.RemoteAddr().String(),
-			Mode:       s.mode,
+			Mode:       EffectiveSnapshotMode(s.mode, false),
 			Online:     true,
 			LastUpdate: t,
 		}
@@ -152,13 +144,37 @@ func (s *ConnSession) handleMessage(m dcol.Message) {
 	}
 	snap.Online = true
 	snap.LastUpdate = time.Now()
-	snap.LastGSOFAt = time.Now()
-	snap.GSOFReportCount++
-	snap.Mode = s.mode
 	snap.RemoteAddr = s.conn.RemoteAddr().String()
 	if len(m.StreamWarnings) > 0 {
 		snap.StreamWarnings = append([]string(nil), m.StreamWarnings...)
 	}
+
+	if m.PacketType == 0x07 && len(m.Payload) >= 8 {
+		if info, ok := dcolserial.ParseRetSerialPayload(m.Payload); ok {
+			now := time.Now()
+			snap.DCOLRetSerial = &DCOLRetSerialSnapshot{
+				RetSerialInfo: info,
+				ReceivedAt:    now,
+			}
+		}
+	}
+
+	snap.Mode = EffectiveSnapshotMode(s.mode, snap.DCOLRetSerial != nil)
+
+	if len(m.GSOFBuffer) == 0 {
+		s.store.Set(s.storeKey, snap)
+		return
+	}
+
+	s.mu.Lock()
+	if !s.gsofSeenLogged {
+		log.Printf("Receiving GSOF reports group_id=%q store_key=%s", s.group.ID, s.storeKey)
+		s.gsofSeenLogged = true
+	}
+	s.mu.Unlock()
+
+	snap.LastGSOFAt = time.Now()
+	snap.GSOFReportCount++
 	prevSerial := snap.Serial
 	ApplyGSOFBuffer(snap, m.GSOFBuffer)
 
@@ -168,6 +184,22 @@ func (s *ConnSession) handleMessage(m dcol.Message) {
 	}
 	s.lastSerial = snap.Serial
 	s.store.Set(s.storeKey, snap)
+}
+
+// sendStartupDCOLQueries sends connection-time DCOL commands (GET SERIAL 06h).
+// Periodic / cyclic DCOL polling can be added separately from this one-shot path.
+func (s *ConnSession) sendStartupDCOLQueries() {
+	fr, err := trimblecfg.Pack(0x06, nil)
+	if err != nil {
+		log.Printf("DCOL GETSERIAL pack error group_id=%q: %v", s.group.ID, err)
+		return
+	}
+	s.writeMu.Lock()
+	_, werr := s.conn.Write(fr)
+	s.writeMu.Unlock()
+	if werr != nil {
+		log.Printf("DCOL GETSERIAL write group_id=%q remote=%s: %v", s.group.ID, s.conn.RemoteAddr(), werr)
+	}
 }
 
 func (s *ConnSession) markOffline() {
@@ -197,6 +229,10 @@ func (s *ConnSession) ApplyConfig(body *trimblecfg.ReceiverConfigJSON) error {
 	if s.mode == ModeReadOnly {
 		return fmt.Errorf("session is read_only")
 	}
+	snap, _ := s.store.Get(s.storeKey)
+	if snap == nil || snap.DCOLRetSerial == nil {
+		return fmt.Errorf("connection is read-only: no DCOL RET SERIAL (07h) response to GET SERIAL (06h)")
+	}
 	frames, j, err := trimblecfg.BuildConfigFrames(body)
 	if err != nil {
 		return err
@@ -208,7 +244,7 @@ func (s *ConnSession) ApplyConfig(body *trimblecfg.ReceiverConfigJSON) error {
 			return err
 		}
 	}
-	snap, _ := s.store.Get(s.storeKey)
+	snap, _ = s.store.Get(s.storeKey)
 	if snap != nil {
 		snap.LastConfigJSON = j
 		if len(frames) > 0 {

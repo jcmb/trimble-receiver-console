@@ -75,6 +75,25 @@ export type RadioInfo = {
   radios?: RadioBandEntry[];
 };
 
+/** DCOL 07h RET SERIAL (reply to command 06h GET SERIAL) */
+export type DCOLRetSerial = {
+  received_at: string;
+  long_serial?: string;
+  receiver_serial_short?: string;
+  receiver_type?: string;
+  nav_processor_version?: string;
+  sig_processor_version?: string;
+  boot_rom_version?: string;
+  antenna_serial?: string;
+  antenna_type?: string;
+  channels_total?: number;
+  channels_l1_only?: number;
+  usable_channels?: number;
+  physical_channels?: number;
+  simultaneous_track?: number;
+  antenna_ini_version?: string;
+};
+
 export type ReceiverSnapshot = {
   group_id: string;
   first_seen: string;
@@ -131,6 +150,7 @@ export type ReceiverSnapshot = {
   stream_warnings?: string[];
   last_config_json?: string;
   config_status?: string;
+  dcol_ret_serial?: DCOLRetSerial;
 };
 
 export type GroupInfo = {
