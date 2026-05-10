@@ -20,7 +20,7 @@ import (
 var dist embed.FS
 
 func main() {
-	log.Printf("trimble-receiver-console version %s", version.Version)
+	log.Printf("%s", version.ConsoleBannerLine())
 
 	cfgPath := os.Getenv("TRIMBLE_CONFIG")
 	if cfgPath == "" {

@@ -18,7 +18,7 @@ import (
 )
 
 func consoleVersionPayload() string {
-	return "trimble-receiver-console version " + version.Version
+	return version.ConsoleBannerLine()
 }
 
 // Server is the HTTP API and static file server.

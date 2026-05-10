@@ -1,39 +1,118 @@
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { SVInfo } from "./types";
 import { useTheme } from "./themeContext";
 
-const SYS = ["GPS", "SBAS", "GLO", "Gal", "QZSS", "BDS"];
+const SYS = ["GPS", "SBAS", "GLO", "Gal", "QZSS", "BDS"] as const;
 
 const SAT_COLORS_DARK = ["#8ab4f8", "#fbbc04", "#81c995", "#c58af9", "#ff8a65", "#4dd0e1"];
 const SAT_COLORS_LIGHT = ["#1967d2", "#e37400", "#137333", "#8430ce", "#c5221f", "#007b83"];
 
-export function SkyPlot({ svs }: { svs: SVInfo[] }) {
-  const ref = useRef<HTMLCanvasElement>(null);
-  const { resolvedTheme } = useTheme();
+type Hit = { x: number; y: number; sv: SVInfo };
 
-  useEffect(() => {
-    const c = ref.current;
-    if (!c) return;
-    const ctx = c.getContext("2d");
-    if (!ctx) return;
-    const isLight = resolvedTheme === "light";
-    const bg = getComputedStyle(document.documentElement).getPropertyValue("--sky-canvas-bg").trim() || "#0f1115";
+function sysIndex(sv: SVInfo): number {
+  const n = SYS.length;
+  return ((sv.system % n) + n) % n;
+}
+
+function ptOnSkyplot(
+  cx: number,
+  cy: number,
+  rMax: number,
+  elDeg: number,
+  azDeg: number
+): { x: number; y: number } {
+  const el = Math.max(0, Math.min(90, elDeg));
+  const az = ((azDeg % 360) + 360) % 360;
+  const r = rMax * (1 - el / 90);
+  const rad = (az * Math.PI) / 180;
+  return {
+    x: cx + r * Math.sin(rad),
+    y: cy - r * Math.cos(rad),
+  };
+}
+
+function tooltipText(sv: SVInfo): string {
+  const sys = SYS[sysIndex(sv)] ?? "?";
+  const lines = [
+    `${sys} PRN ${sv.prn}`,
+    `Elevation ${sv.elevation_deg.toFixed(0)}° · Azimuth ${sv.azimuth_deg.toFixed(0)}°`,
+    `C/N₀ ${sv.cn0_db_hz.toFixed(1)} dB-Hz`,
+    sv.used_in_position ? "Used in position" : "Not used in position",
+  ];
+  if (sv.used_in_rtk) {
+    lines.push("Used in RTK");
+  }
+  return lines.join("\n");
+}
+
+export function SkyPlot({ svs }: { svs: SVInfo[] }) {
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const hitRef = useRef<Hit[]>([]);
+  const { resolvedTheme } = useTheme();
+  const isLight = resolvedTheme === "light";
+  const colors = isLight ? SAT_COLORS_LIGHT : SAT_COLORS_DARK;
+
+  const [visibleSys, setVisibleSys] = useState<boolean[]>(() => Array(SYS.length).fill(true));
+  const [tip, setTip] = useState<{ px: number; py: number; text: string } | null>(null);
+
+  const plotInput = useMemo(() => {
+    const out: SVInfo[] = [];
+    for (const sv of svs) {
+      if (sv.elevation_deg <= 0 && sv.azimuth_deg <= 0 && !sv.used_in_position) {
+        continue;
+      }
+      if (!visibleSys[sysIndex(sv)]) {
+        continue;
+      }
+      out.push(sv);
+    }
+    return out;
+  }, [svs, visibleSys]);
+
+  const draw = useCallback(() => {
+    const canvas = canvasRef.current;
+    const wrap = wrapRef.current;
+    if (!canvas || !wrap) {
+      return;
+    }
+    const ctx = canvas.getContext("2d");
+    if (!ctx) {
+      return;
+    }
+
+    const wPx = wrap.clientWidth || 420;
+    const cssW = Math.min(520, Math.max(220, wPx));
+    const cssH = cssW;
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = Math.floor(cssW * dpr);
+    canvas.height = Math.floor(cssH * dpr);
+    canvas.style.width = `${cssW}px`;
+    canvas.style.height = `${cssH}px`;
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.scale(dpr, dpr);
+
+    const bg =
+      getComputedStyle(document.documentElement).getPropertyValue("--sky-canvas-bg").trim() ||
+      "#0f1115";
     const grid =
       getComputedStyle(document.documentElement).getPropertyValue("--sky-grid").trim() || "#2a2f3a";
     const label =
       getComputedStyle(document.documentElement).getPropertyValue("--sky-label").trim() || "#9aa0a6";
     const prnText =
       getComputedStyle(document.documentElement).getPropertyValue("--sky-prn").trim() || "#e8eaed";
-    const colors = isLight ? SAT_COLORS_LIGHT : SAT_COLORS_DARK;
 
-    const w = c.width;
-    const h = c.height;
-    const cx = w / 2;
-    const cy = h / 2;
-    const rMax = Math.min(w, h) / 2 - 16;
-    ctx.clearRect(0, 0, w, h);
     ctx.fillStyle = bg;
-    ctx.fillRect(0, 0, w, h);
+    ctx.fillRect(0, 0, cssW, cssH);
+
+    const pad = 16;
+    const cx = cssW / 2;
+    const cy = cssH / 2;
+    const rMax = Math.min(cx, cy) - pad - 18;
+    if (rMax < 40) {
+      hitRef.current = [];
+      return;
+    }
 
     ctx.strokeStyle = grid;
     ctx.lineWidth = 1;
@@ -55,32 +134,145 @@ export function SkyPlot({ svs }: { svs: SVInfo[] }) {
     ctx.fillText("N", cx - 4, cy - rMax - 4);
     ctx.fillText("E", cx + rMax + 4, cy + 4);
 
-    for (const sv of svs) {
-      if (sv.elevation_deg <= 0 && sv.azimuth_deg <= 0 && !sv.used_in_position) continue;
-      const el = Math.max(0, Math.min(90, sv.elevation_deg));
-      const az = ((sv.azimuth_deg % 360) + 360) % 360;
-      const rad = rMax * (1 - el / 90);
-      const th = ((90 - az) * Math.PI) / 180;
-      const x = cx + rad * Math.cos(th);
-      const y = cy - rad * Math.sin(th);
-      ctx.fillStyle = colors[sv.system % colors.length]!;
+    const hits: Hit[] = [];
+    const sorted = plotInput.slice().sort((a, b) => a.elevation_deg - b.elevation_deg);
+    for (const sv of sorted) {
+      const { x, y } = ptOnSkyplot(cx, cy, rMax, sv.elevation_deg, sv.azimuth_deg);
+      hits.push({ x, y, sv });
+      const col = colors[sysIndex(sv)]!;
+      ctx.fillStyle = col;
       ctx.beginPath();
       ctx.arc(x, y, sv.used_in_position ? 6 : 4, 0, Math.PI * 2);
       ctx.fill();
       ctx.fillStyle = prnText;
       ctx.font = "10px monospace";
-      ctx.fillText(String(sv.prn), x + 6, y - 6);
+      ctx.fillText(String(sv.prn), x + 7, y - 4);
     }
+    hitRef.current = hits;
+  }, [plotInput, colors]);
 
-    let ly = 16;
-    SYS.forEach((name, i) => {
-      ctx.fillStyle = colors[i % colors.length]!;
-      ctx.fillRect(8, ly, 10, 10);
-      ctx.fillStyle = label;
-      ctx.fillText(name, 22, ly + 9);
-      ly += 16;
-    });
-  }, [svs, resolvedTheme]);
+  useEffect(() => {
+    draw();
+  }, [draw]);
 
-  return <canvas ref={ref} width={420} height={420} style={{ maxWidth: "100%" }} />;
+  useEffect(() => {
+    const wrap = wrapRef.current;
+    if (!wrap || typeof ResizeObserver === "undefined") {
+      return;
+    }
+    const ro = new ResizeObserver(() => draw());
+    ro.observe(wrap);
+    return () => ro.disconnect();
+  }, [draw]);
+
+  function pickHit(mx: number, my: number): Hit | null {
+    let best: Hit | null = null;
+    let bestD = 20;
+    for (const h of hitRef.current) {
+      const d = Math.hypot(mx - h.x, my - h.y);
+      if (d <= 18 && d < bestD) {
+        bestD = d;
+        best = h;
+      }
+    }
+    return best;
+  }
+
+  function onCanvasMouseMove(ev: React.MouseEvent<HTMLCanvasElement>) {
+    const canvas = canvasRef.current;
+    if (!canvas) {
+      return;
+    }
+    const rect = canvas.getBoundingClientRect();
+    const cssW = parseFloat(canvas.style.width) || rect.width;
+    const cssH = parseFloat(canvas.style.height) || rect.height;
+    if (rect.width <= 0 || rect.height <= 0) {
+      setTip(null);
+      return;
+    }
+    const mx = ((ev.clientX - rect.left) / rect.width) * cssW;
+    const my = ((ev.clientY - rect.top) / rect.height) * cssH;
+    const hit = pickHit(mx, my);
+    if (hit) {
+      let x = ev.clientX + 14;
+      let y = ev.clientY + 14;
+      const tw = 280;
+      const th = 120;
+      if (x + tw > window.innerWidth - 8) {
+        x = ev.clientX - tw - 14;
+      }
+      if (y + th > window.innerHeight - 8) {
+        y = ev.clientY - th - 14;
+      }
+      setTip({ px: x, py: y, text: tooltipText(hit.sv) });
+    } else {
+      setTip(null);
+    }
+  }
+
+  return (
+    <div ref={wrapRef} style={{ width: "100%" }}>
+      <p style={{ fontSize: 12, color: "var(--app-muted)", margin: "0 0 8px", lineHeight: 1.4 }}>
+        North up, horizon at outer ring — hover an SV for details. Uncheck a constellation to hide its
+        satellites.
+      </p>
+      <div className="row" style={{ flexWrap: "wrap", gap: "6px 14px", marginBottom: 10 }}>
+        {SYS.map((name, i) => (
+          <label key={name} className="row" style={{ gap: 6, fontSize: 12, cursor: "pointer" }}>
+            <input
+              type="checkbox"
+              checked={visibleSys[i] ?? true}
+              onChange={(e) => {
+                const on = e.target.checked;
+                setVisibleSys((prev) => {
+                  const next = [...prev];
+                  next[i] = on;
+                  return next;
+                });
+              }}
+            />
+            <span style={{ color: colors[i], fontSize: 14, lineHeight: 1 }} aria-hidden>
+              ■
+            </span>
+            <span>{name}</span>
+          </label>
+        ))}
+      </div>
+      <div style={{ position: "relative", display: "inline-block", maxWidth: "100%" }}>
+        <canvas
+          ref={canvasRef}
+          role="img"
+          aria-label="Satellite sky plot"
+          style={{ maxWidth: "100%", display: "block", cursor: "crosshair" }}
+          onMouseMove={onCanvasMouseMove}
+          onMouseLeave={() => setTip(null)}
+        />
+        {tip && (
+          <pre
+            style={{
+              position: "fixed",
+              left: tip.px,
+              top: tip.py,
+              margin: 0,
+              zIndex: 50,
+              pointerEvents: "none",
+              whiteSpace: "pre-wrap",
+              maxWidth: 280,
+              padding: "8px 10px",
+              fontSize: 12,
+              lineHeight: 1.35,
+              fontFamily: "system-ui, sans-serif",
+              background: "var(--app-panel, #1e2329)",
+              color: "var(--app-text, #e8eaed)",
+              border: "1px solid var(--app-border, #3c444d)",
+              borderRadius: 6,
+              boxShadow: "0 4px 12px rgba(0,0,0,0.35)",
+            }}
+          >
+            {tip.text}
+          </pre>
+        )}
+      </div>
+    </div>
+  );
 }

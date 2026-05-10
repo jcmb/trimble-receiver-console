@@ -6,7 +6,7 @@ VERSION ?= $(shell git describe --always --dirty 2>/dev/null || echo dev)
 LDFLAGS := -X 'github.com/gkirk/trimble-receiver-console/internal/version.Version=$(VERSION)'
 
 web:
-	cd web && npm ci && npm run build
+	cd web && VITE_WEB_UI_VERSION=$(VERSION) npm ci && npm run build
 
 server: web
 	mkdir -p bin

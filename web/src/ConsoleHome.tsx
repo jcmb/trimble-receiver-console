@@ -148,12 +148,19 @@ export default function ConsoleHome() {
         style={{
           margin: 12,
           display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          flexWrap: "wrap",
-          gap: 12,
+          flexDirection: "column",
+          gap: 6,
         }}
       >
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            flexWrap: "wrap",
+            gap: 12,
+          }}
+        >
         <div>
           <strong>Trimble receiver console</strong>
           <span className="muted" style={{ marginLeft: 12 }}>
@@ -192,6 +199,14 @@ export default function ConsoleHome() {
           <Link to="/help">Help</Link>
           <ThemeToggle />
         </div>
+        </div>
+        <p className="muted" style={{ fontSize: 12, margin: 0, lineHeight: 1.4 }}>
+          <span title="Server binary (from API)">{consoleVersion}</span>
+          {" · "}
+          <span title="Embedded web bundle build id">
+            Web UI <code style={{ fontSize: "inherit" }}>{__WEB_UI_VERSION__}</code>
+          </span>
+        </p>
       </header>
 
       <main style={{ flex: 1, margin: "0 12px 12px", display: "flex", flexDirection: "column", gap: 12 }}>
@@ -202,7 +217,7 @@ export default function ConsoleHome() {
               <thead>
                 <tr>
                   <th>Serial</th>
-                  <th>Version</th>
+                  <th>Firmware</th>
                   <th>Position type</th>
                   <th>Power</th>
                   <th>Logging</th>
@@ -230,7 +245,7 @@ export default function ConsoleHome() {
                       </button>
                     </td>
                     <td className="muted" style={{ fontSize: 12, whiteSpace: "nowrap" }}>
-                      {consoleVersion}
+                      {r.firmware_version?.trim() ? r.firmware_version : "—"}
                     </td>
                     <td style={{ fontSize: 13 }}>
                       {r.has_position_type ? `${r.position_type_label} (${r.position_type})` : "—"}
@@ -364,6 +379,26 @@ function formatUptimeSince(iso: string): string {
   return `${m}m`;
 }
 
+function llhCloseDeg(
+  a: { lat_rad?: number; lon_rad?: number; height_m?: number },
+  b: { lat_rad?: number; lon_rad?: number; height_m?: number }
+): boolean {
+  if (a.lat_rad == null || a.lon_rad == null || b.lat_rad == null || b.lon_rad == null) {
+    return false;
+  }
+  const latA = (a.lat_rad * 180) / Math.PI;
+  const lonA = (a.lon_rad * 180) / Math.PI;
+  const latB = (b.lat_rad * 180) / Math.PI;
+  const lonB = (b.lon_rad * 180) / Math.PI;
+  const hA = a.height_m ?? 0;
+  const hB = b.height_m ?? 0;
+  return (
+    Math.abs(latA - latB) < 1e-7 &&
+    Math.abs(lonA - lonB) < 1e-7 &&
+    Math.abs(hA - hB) < 1e-3
+  );
+}
+
 function BaseStationCard({ r }: { r: ReceiverSnapshot }) {
   const rb = r.received_base;
   const bq = r.base_position_quality;
@@ -374,13 +409,7 @@ function BaseStationCard({ r }: { r: ReceiverSnapshot }) {
     margin: 0,
     fontSize: 13,
   };
-  const subHdr: CSSProperties = {
-    fontSize: 11,
-    marginTop: 12,
-    marginBottom: 6,
-    textTransform: "uppercase",
-    letterSpacing: "0.04em",
-  };
+  const mono: CSSProperties = { margin: 0, fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace" };
   const llhLine = (latRad: number | undefined, lonRad: number | undefined, hM: number | undefined) => {
     if (latRad == null || lonRad == null) return "—";
     const lat = (latRad * 180) / Math.PI;
@@ -389,17 +418,26 @@ function BaseStationCard({ r }: { r: ReceiverSnapshot }) {
     return `${toDMS(lat, "lat", 4)}, ${toDMS(lon, "lon", 4)} · ${hStr}`;
   };
 
+  if (!rb && !bq) {
+    return null;
+  }
+
+  const showAntenna =
+    !!rb &&
+    !!bq &&
+    !llhCloseDeg(
+      { lat_rad: rb.lat_rad, lon_rad: rb.lon_rad, height_m: rb.height_m },
+      { lat_rad: bq.lat_rad, lon_rad: bq.lon_rad, height_m: bq.height_m }
+    );
+
   return (
     <div className="status-card">
       <h3 className="status-card-title mixed-case">Base station</h3>
-      {rb && (
-        <>
-          <div className="muted" style={{ ...subHdr, marginTop: 0 }}>
-            GSOF 35 — Received base
-          </div>
-          <dl style={dlStyle}>
+      <dl style={dlStyle}>
+        {rb && (
+          <>
             <dt className="muted" style={{ margin: 0 }}>
-              Valid
+              Valid.
             </dt>
             <dd style={{ margin: 0 }}>{rb.info_valid ? "Yes" : "No"}</dd>
             <dt className="muted" style={{ margin: 0 }}>
@@ -410,37 +448,46 @@ function BaseStationCard({ r }: { r: ReceiverSnapshot }) {
               Base ID
             </dt>
             <dd style={{ margin: 0 }}>{rb.base_id != null ? rb.base_id : "—"}</dd>
+          </>
+        )}
+        {bq && (
+          <>
             <dt className="muted" style={{ margin: 0 }}>
               Position
             </dt>
-            <dd style={{ margin: 0, fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace" }}>{llhLine(rb.lat_rad, rb.lon_rad, rb.height_m)}</dd>
-          </dl>
-        </>
-      )}
-      {bq && (
-        <>
-          <div className="muted" style={subHdr}>
-            GSOF 41 — Position and quality
-          </div>
-          <dl style={dlStyle}>
-            <dt className="muted" style={{ margin: 0 }}>
-              GPS time
-            </dt>
-            <dd style={{ margin: 0, fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace" }}>
-              week {bq.gps_week ?? "—"} · {bq.gps_ms ?? "—"} ms
-            </dd>
+            <dd style={mono}>{llhLine(bq.lat_rad, bq.lon_rad, bq.height_m)}</dd>
             <dt className="muted" style={{ margin: 0 }}>
               Quality
             </dt>
             <dd style={{ margin: 0 }}>{bq.quality_label ?? "—"}</dd>
+          </>
+        )}
+        {!bq && rb && (
+          <>
             <dt className="muted" style={{ margin: 0 }}>
-              Antenna position
+              Position
             </dt>
-            <dd style={{ margin: 0, fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace" }}>
-              {llhLine(bq.lat_rad, bq.lon_rad, bq.height_m)}
-            </dd>
+            <dd style={mono}>{llhLine(rb.lat_rad, rb.lon_rad, rb.height_m)}</dd>
+          </>
+        )}
+      </dl>
+      {showAntenna && rb && (
+        <>
+          <h4 className="muted" style={{ fontSize: 11, margin: "14px 0 8px", letterSpacing: "0.04em" }}>
+            Antenna position
+          </h4>
+          <dl style={dlStyle}>
+            <dt className="muted" style={{ margin: 0 }}>
+              Position
+            </dt>
+            <dd style={mono}>{llhLine(rb.lat_rad, rb.lon_rad, rb.height_m)}</dd>
           </dl>
         </>
+      )}
+      {!rb && bq && (
+        <p className="muted" style={{ margin: "10px 0 0", fontSize: 12 }}>
+          No GSOF type 35 (received base) in the latest snapshot — identity fields unavailable.
+        </p>
       )}
     </div>
   );
@@ -688,6 +735,21 @@ function StatusPanel({ r }: { r: ReceiverSnapshot }) {
             )}
           </div>
         )}
+
+        {r.has_velocity && (
+          <div
+            style={{
+              marginTop: 12,
+              paddingTop: 12,
+              borderTop: "1px solid var(--table-border)",
+              fontSize: 14,
+            }}
+          >
+            <span className="muted" style={{ fontSize: 12 }}>Velocity </span>
+            Horizontal {r.horizontal_vel_ms.toFixed(3)} m/s · Vertical {r.vertical_vel_ms.toFixed(3)} m/s · Heading{" "}
+            {((r.heading_rad * 180) / Math.PI).toFixed(2)}°
+          </div>
+        )}
       </div>
 
       <div className="status-card">
@@ -775,15 +837,6 @@ function StatusPanel({ r }: { r: ReceiverSnapshot }) {
           <h3 className="status-card-title">RTK ECEF Δ</h3>
           <div style={{ fontFamily: "ui-monospace, monospace", fontSize: 13 }}>
             ΔX {r.delta_x_m.toFixed(3)} · ΔY {r.delta_y_m.toFixed(3)} · ΔZ {r.delta_z_m.toFixed(3)} m
-          </div>
-        </div>
-      )}
-      {r.has_velocity && (
-        <div className="status-card">
-          <h3 className="status-card-title">Velocity</h3>
-          <div style={{ fontSize: 14 }}>
-            Horizontal {r.horizontal_vel_ms.toFixed(3)} m/s · Vertical {r.vertical_vel_ms.toFixed(3)} m/s · Heading{" "}
-            {((r.heading_rad * 180) / Math.PI).toFixed(2)}°
           </div>
         </div>
       )}
