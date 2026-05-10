@@ -42,7 +42,9 @@ export function trackedSatellitesForSky(svs: SVInfo[]): SVInfo[] {
 export type SvDetailRow = { label: string; value: string };
 
 function fmtCn(v: number | undefined): string {
-  return v != null && Number.isFinite(v) ? `${v.toFixed(1)} dB-Hz` : "—";
+  if (v == null || !Number.isFinite(v)) return "—";
+  if (v <= 0) return "not tracked";
+  return `${v.toFixed(1)} dB-Hz`;
 }
 
 /** Rows matching the sky-plot hover tooltip (structured for the tracking card). */
@@ -81,7 +83,7 @@ export function svTooltipText(sv: SVInfo): string {
   const lines = [
     `${sys} PRN ${sv.prn}`,
     `Elevation ${sv.elevation_deg.toFixed(0)}° · Azimuth ${sv.azimuth_deg.toFixed(0)}°`,
-    `L1 C/N₀ ${sv.cn0_db_hz.toFixed(1)} dB-Hz · L2 ${sv.cn0_l2_db_hz != null ? sv.cn0_l2_db_hz.toFixed(1) : "—"} · L5 ${sv.cn0_l56_db_hz != null ? sv.cn0_l56_db_hz.toFixed(1) : "—"} dB-Hz`,
+    `C/N₀  L1 ${fmtCn(sv.cn0_db_hz)} · L2 ${fmtCn(sv.cn0_l2_db_hz)} · L5 ${fmtCn(sv.cn0_l56_db_hz)}`,
   ];
   if (sv.track_l1 || sv.track_l2 || sv.track_l5) {
     lines.push(`Track L1 ${sv.track_l1 || "—"} · L2 ${sv.track_l2 || "—"} · L5 ${sv.track_l5 || "—"}`);

@@ -23,16 +23,22 @@ function cmpTie(a: SVInfo, b: SVInfo): number {
   return a.prn - b.prn;
 }
 
+/** GSOF uses 0.0 when the frequency is not being tracked; real C/N₀ is always positive. */
 function fmtL1Cn(sv: SVInfo): string {
+  if (!Number.isFinite(sv.cn0_db_hz) || sv.cn0_db_hz <= 0) return "—";
   return sv.cn0_db_hz.toFixed(1);
 }
 
 function fmtL2Cn(sv: SVInfo): string {
-  return sv.cn0_l2_db_hz != null ? sv.cn0_l2_db_hz.toFixed(1) : "—";
+  if (sv.cn0_l2_db_hz == null || !Number.isFinite(sv.cn0_l2_db_hz)) return "—";
+  if (sv.cn0_l2_db_hz <= 0) return "—";
+  return sv.cn0_l2_db_hz.toFixed(1);
 }
 
 function fmtL5Cn(sv: SVInfo): string {
-  return sv.cn0_l56_db_hz != null ? sv.cn0_l56_db_hz.toFixed(1) : "—";
+  if (sv.cn0_l56_db_hz == null || !Number.isFinite(sv.cn0_l56_db_hz)) return "—";
+  if (sv.cn0_l56_db_hz <= 0) return "—";
+  return sv.cn0_l56_db_hz.toFixed(1);
 }
 
 function dispTrack(s: string | undefined): string {
@@ -213,7 +219,7 @@ export function SVTrackingCard({ svs }: { svs: SVInfo[] }) {
       <p style={{ fontSize: 12, color: "var(--app-muted)", margin: "0 0 12px", lineHeight: 1.4 }}>
         GSOF ALL SV detail (records 48 or 34): one C/N₀ value per frequency column when the extended 10-byte SV row is present. Tracking codes
         come from SV Flags2 (constellation-specific). The <strong>L5</strong> column includes Galileo E5/E6-class signals
-        (E6 shares this column). Click a column header to sort.
+        (E6 shares this column). C/N₀ of <strong>0.0</strong> means that frequency is not being tracked (shown as —). Click a column header to sort.
       </p>
       <div className="row" style={{ gap: 8, marginBottom: 12, flexWrap: "wrap" }}>
         <button
@@ -322,11 +328,32 @@ export function SVTrackingCard({ svs }: { svs: SVInfo[] }) {
                   <td style={tdNum}>{sv.azimuth_deg.toFixed(0)}</td>
                   <td style={{ ...td, paddingLeft: 10 }}>{sv.used_in_position ? "Used" : "Not used"}</td>
                   <td style={{ ...tdMono, paddingLeft: 10 }}>{sv.used_in_rtk ? "Yes" : "—"}</td>
-                  <td style={{ ...tdNum, borderLeft: "1px solid var(--table-border)" }}>{fmtL1Cn(sv)}</td>
+                  <td
+                    style={{ ...tdNum, borderLeft: "1px solid var(--table-border)" }}
+                    title={
+                      Number.isFinite(sv.cn0_db_hz) && sv.cn0_db_hz <= 0 ? "Not tracking on L1" : undefined
+                    }
+                  >
+                    {fmtL1Cn(sv)}
+                  </td>
                   <td style={tdTrack}>{dispTrack(sv.track_l1)}</td>
-                  <td style={tdNum}>{fmtL2Cn(sv)}</td>
+                  <td
+                    style={tdNum}
+                    title={
+                      sv.cn0_l2_db_hz != null && sv.cn0_l2_db_hz <= 0 ? "Not tracking on L2" : undefined
+                    }
+                  >
+                    {fmtL2Cn(sv)}
+                  </td>
                   <td style={tdTrack}>{dispTrack(sv.track_l2)}</td>
-                  <td style={tdNum}>{fmtL5Cn(sv)}</td>
+                  <td
+                    style={tdNum}
+                    title={
+                      sv.cn0_l56_db_hz != null && sv.cn0_l56_db_hz <= 0 ? "Not tracking on L5" : undefined
+                    }
+                  >
+                    {fmtL5Cn(sv)}
+                  </td>
                   <td style={tdTrack}>{dispTrack(sv.track_l5)}</td>
                 </tr>
               );
