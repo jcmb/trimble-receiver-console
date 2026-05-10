@@ -91,6 +91,7 @@ export type ReceiverDiagnostics28 = {
   common_l2_svs?: number;
   datalink_latency_s?: number;
   diff_svs_in_use?: number;
+  /** Seconds (GSOF payload byte × 0.1). */
   rtk_position_age?: number;
 };
 

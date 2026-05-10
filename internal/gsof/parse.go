@@ -113,7 +113,8 @@ type ReceiverDiagnostics28 struct {
 	CommonL2SVs                  int     `json:"common_l2_svs,omitempty"`
 	DatalinkLatencySec           float64 `json:"datalink_latency_s,omitempty"`
 	DiffSVsInUse                 int     `json:"diff_svs_in_use,omitempty"`
-	RTKPositionAge               uint8   `json:"rtk_position_age,omitempty"`
+	// RTKPositionAge is seconds; payload byte is in units of 0.1 s (Trimble GSOF type 28).
+	RTKPositionAge float64 `json:"rtk_position_age,omitempty"`
 }
 
 // ParseReceiverDiagnosticsType28 parses GSOF record 28 (0x1C). Not record 40 (0x28).
@@ -131,7 +132,7 @@ func ParseReceiverDiagnosticsType28(payload []byte) (*ReceiverDiagnostics28, boo
 		CommonL2SVs:                  int(payload[10]),
 		DatalinkLatencySec:           float64(payload[11]) * 0.1,
 		DiffSVsInUse:                 int(payload[13]),
-		RTKPositionAge:               payload[16],
+		RTKPositionAge:               float64(payload[16]) * 0.1,
 	}
 	return out, true
 }
@@ -193,11 +194,11 @@ func ParseBriefSVType33(payload []byte) (out []BriefSV, ok bool) {
 	var res []BriefSV
 	for i := 0; i < n && ptr+4 <= len(payload); i++ {
 		res = append(res, BriefSV{
-			PRN:       int(payload[ptr]),
-			System:    int(payload[ptr+1]),
-			Flags1:    payload[ptr+2],
-			Flags2:    payload[ptr+3],
-			HasAzEl:   false,
+			PRN:     int(payload[ptr]),
+			System:  int(payload[ptr+1]),
+			Flags1:  payload[ptr+2],
+			Flags2:  payload[ptr+3],
+			HasAzEl: false,
 		})
 		ptr += 4
 	}
@@ -206,10 +207,10 @@ func ParseBriefSVType33(payload []byte) (out []BriefSV, ok bool) {
 
 // BriefSV from type 33 (no az/el).
 type BriefSV struct {
-	PRN    int
-	System int
-	Flags1 byte
-	Flags2 byte
+	PRN     int
+	System  int
+	Flags1  byte
+	Flags2  byte
 	HasAzEl bool
 }
 
@@ -349,27 +350,27 @@ func ParseBattMemType37(payload []byte) (batteryPct float64, logHoursRemain floa
 // LBandStatusInfo is GSOF record 40 (0x28) — LBAND STATUS INFO (Trimble OEM GNSS GSOF).
 // Layout matches gsof_lbandStatusInfo: payload is the record body after type/length bytes.
 type LBandStatusInfo struct {
-	SatelliteName               string  `json:"satellite_name,omitempty"`
-	NominalFrequencyMHz         float64 `json:"nominal_frequency_mhz,omitempty"`
-	BitRateHz                   uint16  `json:"bit_rate_hz,omitempty"`
-	SNRDbHz                     float64 `json:"snr_db_hz,omitempty"`
-	Engine                      string  `json:"engine,omitempty"` // HP, XP, G2, unknown
-	HPLibraryActive             bool    `json:"hp_library_active,omitempty"`
-	VBSLibraryActive            bool    `json:"vbs_library_active,omitempty"`
-	BeamMode                    string  `json:"beam_mode,omitempty"`
-	OmniSTARMotion              string  `json:"omnistar_motion,omitempty"`
-	SigmaHorizontalThresholdM   float64 `json:"sigma_horizontal_threshold_m,omitempty"` // 3σ horizontal precision threshold
-	SigmaVerticalThresholdM     float64 `json:"sigma_vertical_threshold_m,omitempty"`   // 3σ vertical precision threshold
-	NMEAEncryptionOn            bool    `json:"nmea_encryption_on,omitempty"`
-	IQRatio                     float64 `json:"iq_ratio,omitempty"`
-	EstimatedBitErrorRate       float64 `json:"estimated_bit_error_rate,omitempty"`
-	TotalUniqueWords            uint32  `json:"total_unique_words,omitempty"`
-	BadUniqueWords              uint32  `json:"bad_unique_words,omitempty"`
-	BadUniqueWordBits           uint32  `json:"bad_unique_word_bits,omitempty"`
-	TotalViterbiSymbols         uint32  `json:"total_viterbi_symbols,omitempty"`
-	BadViterbiSymbols           uint32  `json:"bad_viterbi_symbols,omitempty"`
-	BadMessages                 uint32  `json:"bad_messages,omitempty"`
-	MeasuredFrequencyTrusted    *bool   `json:"measured_frequency_trusted,omitempty"` // nil if not present in payload
+	SatelliteName                string  `json:"satellite_name,omitempty"`
+	NominalFrequencyMHz          float64 `json:"nominal_frequency_mhz,omitempty"`
+	BitRateHz                    uint16  `json:"bit_rate_hz,omitempty"`
+	SNRDbHz                      float64 `json:"snr_db_hz,omitempty"`
+	Engine                       string  `json:"engine,omitempty"` // HP, XP, G2, unknown
+	HPLibraryActive              bool    `json:"hp_library_active,omitempty"`
+	VBSLibraryActive             bool    `json:"vbs_library_active,omitempty"`
+	BeamMode                     string  `json:"beam_mode,omitempty"`
+	OmniSTARMotion               string  `json:"omnistar_motion,omitempty"`
+	SigmaHorizontalThresholdM    float64 `json:"sigma_horizontal_threshold_m,omitempty"` // 3σ horizontal precision threshold
+	SigmaVerticalThresholdM      float64 `json:"sigma_vertical_threshold_m,omitempty"`   // 3σ vertical precision threshold
+	NMEAEncryptionOn             bool    `json:"nmea_encryption_on,omitempty"`
+	IQRatio                      float64 `json:"iq_ratio,omitempty"`
+	EstimatedBitErrorRate        float64 `json:"estimated_bit_error_rate,omitempty"`
+	TotalUniqueWords             uint32  `json:"total_unique_words,omitempty"`
+	BadUniqueWords               uint32  `json:"bad_unique_words,omitempty"`
+	BadUniqueWordBits            uint32  `json:"bad_unique_word_bits,omitempty"`
+	TotalViterbiSymbols          uint32  `json:"total_viterbi_symbols,omitempty"`
+	BadViterbiSymbols            uint32  `json:"bad_viterbi_symbols,omitempty"`
+	BadMessages                  uint32  `json:"bad_messages,omitempty"`
+	MeasuredFrequencyTrusted     *bool   `json:"measured_frequency_trusted,omitempty"` // nil if not present in payload
 	MeasuredSatelliteFrequencyHz float64 `json:"measured_satellite_frequency_hz,omitempty"`
 }
 
@@ -512,12 +513,12 @@ func ParseBasePositionQualityType41(payload []byte) (*BasePositionQualityInfo, b
 
 // RadioBandEntry is one radio block inside GSOF record 57 (0x39).
 type RadioBandEntry struct {
-	Band        string   `json:"band,omitempty"`
-	Channel     int      `json:"channel,omitempty"`
-	SignalDbm   *float64 `json:"signal_dbm,omitempty"`
-	SignalBars  int      `json:"signal_bars,omitempty"`
-	NoiseDbm    *float64 `json:"noise_dbm,omitempty"`
-	NoiseBars   int      `json:"noise_bars,omitempty"`
+	Band       string   `json:"band,omitempty"`
+	Channel    int      `json:"channel,omitempty"`
+	SignalDbm  *float64 `json:"signal_dbm,omitempty"`
+	SignalBars int      `json:"signal_bars,omitempty"`
+	NoiseDbm   *float64 `json:"noise_dbm,omitempty"`
+	NoiseBars  int      `json:"noise_bars,omitempty"`
 }
 
 // RadioInfo is GSOF record 57 (0x39) — Radio information.

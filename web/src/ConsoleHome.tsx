@@ -680,7 +680,7 @@ function channelsRetSerialSummary(rs: DCOLRetSerial): string {
   const parts: string[] = [];
   if (rs.usable_channels != null) parts.push(`Usable ${rs.usable_channels}`);
   if (rs.physical_channels != null) parts.push(`Physical ${rs.physical_channels}`);
-  if (rs.simultaneous_track != null) parts.push(`Simultaneous ${rs.simultaneous_track}`);
+  if (rs.simultaneous_track != null) parts.push(`Simultaneous track ${rs.simultaneous_track}`);
   return parts.length > 0 ? parts.join(" · ") : "—";
 }
 
@@ -693,7 +693,7 @@ function VectorCard({ vector }: { vector?: VectorSnapshot }) {
     verticalAlign: "top",
     color: "var(--app-muted)",
     fontSize: 12,
-    width: "4.5rem",
+    width: "5.5rem",
   };
   const tdV: CSSProperties = {
     padding: "8px 12px 8px 0",
@@ -701,15 +701,35 @@ function VectorCard({ vector }: { vector?: VectorSnapshot }) {
     fontSize: 13,
     color: "var(--app-text)",
   };
+  const captionStyle: CSSProperties = {
+    captionSide: "top",
+    textAlign: "left",
+    padding: "0 0 8px",
+    fontSize: 12,
+    fontWeight: 500,
+    color: "var(--app-text)",
+    lineHeight: 1.35,
+  };
+  const tableStyle: CSSProperties = { width: "100%", borderCollapse: "collapse" };
+  const both = Boolean(tp && d);
   return (
     <div className="status-card">
       <h3 className="status-card-title mixed-case">Vector</h3>
-      {tp && (
-        <>
-          <p className="muted" style={{ fontSize: 12, margin: "0 0 8px", lineHeight: 1.35 }}>
-            Tangent plane ENU (GSOF type 7) — base→rover on tangent plane at base (meters).
-          </p>
-          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+      <div
+        style={
+          both
+            ? {
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+                gap: "16px 20px",
+                alignItems: "start",
+              }
+            : undefined
+        }
+      >
+        {tp && (
+          <table style={tableStyle}>
+            <caption style={captionStyle}>Δ East / North / Up — tangent plane at base (type 7, m)</caption>
             <tbody>
               <tr>
                 <td style={tdL}>Δ East</td>
@@ -725,17 +745,9 @@ function VectorCard({ vector }: { vector?: VectorSnapshot }) {
               </tr>
             </tbody>
           </table>
-        </>
-      )}
-      {d && (
-        <>
-          <p
-            className="muted"
-            style={{ fontSize: 12, margin: tp ? "12px 0 8px" : "0 0 8px", lineHeight: 1.35 }}
-          >
-            Receiver diagnostics (GSOF type 28).
-          </p>
-          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+        )}
+        {d && (
+          <table style={tableStyle}>
             <tbody>
               <tr>
                 <td style={tdL}>Ref. station info</td>
@@ -765,12 +777,14 @@ function VectorCard({ vector }: { vector?: VectorSnapshot }) {
               </tr>
               <tr>
                 <td style={tdL}>RTK position age</td>
-                <td style={tdV}>{d.rtk_position_age != null ? String(d.rtk_position_age) : "—"}</td>
+                <td style={tdV}>
+                  {d.rtk_position_age != null ? `${d.rtk_position_age.toFixed(1)} s` : "—"}
+                </td>
               </tr>
             </tbody>
           </table>
-        </>
-      )}
+        )}
+      </div>
     </div>
   );
 }
