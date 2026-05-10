@@ -187,7 +187,15 @@ func (s *ConnSession) handleMessage(m dcol.Message) {
 	snap.LastGSOFAt = time.Now()
 	snap.GSOFReportCount++
 	prevSerial := snap.Serial
-	ApplyGSOFBuffer(snap, m.GSOFBuffer)
+	var gsofLog *ApplyGSOFOpts
+	if s.cfg.VerboseGSOF {
+		id := snap.Serial
+		if id == "" {
+			id = s.storeKey
+		}
+		gsofLog = &ApplyGSOFOpts{Verbose: true, GroupID: s.group.ID, Identity: id}
+	}
+	ApplyGSOFBuffer(snap, m.GSOFBuffer, gsofLog)
 
 	if snap.Serial != "" && snap.Serial != prevSerial && strings.HasPrefix(s.storeKey, "anon:") {
 		s.store.Delete(s.storeKey)

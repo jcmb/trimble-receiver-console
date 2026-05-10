@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"embed"
+	"flag"
 	"io/fs"
 	"log"
 	"net/http"
@@ -22,6 +23,9 @@ var dist embed.FS
 func main() {
 	log.Printf("%s", version.ConsoleBannerLine())
 
+	verboseGSOF := flag.Bool("verbose-gsof", false, "log GSOF per-report record histogram and type 0x02 (LLH) decode details")
+	flag.Parse()
+
 	cfgPath := os.Getenv("TRIMBLE_CONFIG")
 	if cfgPath == "" {
 		cfgPath = "config.yaml"
@@ -39,6 +43,10 @@ func main() {
 		if err := cfg.ValidateHTTPListen(); err != nil {
 			log.Fatalf("config: %v", err)
 		}
+	}
+	if *verboseGSOF {
+		cfg.VerboseGSOF = true
+		log.Printf("verbose GSOF logging enabled (-verbose-gsof)")
 	}
 
 	hub := session.NewHub(cfg)

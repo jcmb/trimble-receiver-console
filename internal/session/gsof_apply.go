@@ -1,8 +1,12 @@
 package session
 
 import (
+	"fmt"
+	"log"
 	"math"
+	"sort"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gkirk/dcol"
@@ -10,9 +14,47 @@ import (
 	"github.com/gkirk/trimble-receiver-console/internal/gsof"
 )
 
+// ApplyGSOFOpts selects optional stderr logging for ApplyGSOFBuffer.
+type ApplyGSOFOpts struct {
+	Verbose  bool
+	GroupID  string
+	Identity string // serial number or anon store key
+}
+
+func formatGSOFTypeHistogram(m map[byte]int) string {
+	if len(m) == 0 {
+		return ""
+	}
+	keys := make([]byte, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	sort.Slice(keys, func(i, j int) bool { return keys[i] < keys[j] })
+	var b strings.Builder
+	for i, k := range keys {
+		if i > 0 {
+			b.WriteByte(' ')
+		}
+		fmt.Fprintf(&b, "%02X:%d", k, m[k])
+	}
+	return b.String()
+}
+
+func countGSOFSubrecords(m map[byte]int) int {
+	n := 0
+	for _, v := range m {
+		n += v
+	}
+	return n
+}
+
 // ApplyGSOFBuffer merges GSOF sub-records into snap.
-func ApplyGSOFBuffer(snap *ReceiverSnapshot, gsofBuf []byte) {
+func ApplyGSOFBuffer(snap *ReceiverSnapshot, gsofBuf []byte, opts *ApplyGSOFOpts) {
 	flat := dcol.FlattenGSOFBuffer(gsofBuf)
+	var recCounts map[byte]int
+	if opts != nil && opts.Verbose {
+		recCounts = make(map[byte]int)
+	}
 	var detail48 []gsof.DetailSV
 	var detail34 []gsof.DetailSV
 	var brief []gsof.BriefSV
@@ -24,6 +66,9 @@ func ApplyGSOFBuffer(snap *ReceiverSnapshot, gsofBuf []byte) {
 	var hasGPSTime bool
 
 	gsof.WalkRecords(flat, func(recType byte, payload []byte) {
+		if recCounts != nil {
+			recCounts[recType]++
+		}
 		switch recType {
 		case 0x01:
 			if ms, w, ok := gsof.ParseTimeType1(payload); ok {
@@ -31,13 +76,30 @@ func ApplyGSOFBuffer(snap *ReceiverSnapshot, gsofBuf []byte) {
 				hasGPSTime = true
 			}
 		case 0x02:
+			if opts != nil && opts.Verbose {
+				log.Printf("gsof verbose group=%q identity=%q type=0x02 payload_bytes=%d",
+					opts.GroupID, opts.Identity, len(payload))
+			}
 			if lat, lon, h, ok := gsof.ParseLLHType2(payload); ok {
 				if math.IsNaN(lat) || math.IsNaN(lon) || math.IsNaN(h) ||
 					math.IsInf(lat, 0) || math.IsInf(lon, 0) || math.IsInf(h, 0) {
+					if opts != nil && opts.Verbose {
+						log.Printf("gsof verbose group=%q identity=%q type=0x02 skip non-finite lat=%g lon=%g h_m=%g",
+							opts.GroupID, opts.Identity, lat, lon, h)
+					}
 					break
 				}
 				snap.LatRad, snap.LonRad, snap.HeightM = lat, lon, h
 				snap.HasLLH = true
+				if opts != nil && opts.Verbose {
+					latDeg := lat * 180 / math.Pi
+					lonDeg := lon * 180 / math.Pi
+					log.Printf("gsof verbose group=%q identity=%q type=0x02 applied HasLLH=true lat_deg=%.7f lon_deg=%.7f h_m=%.3f",
+						opts.GroupID, opts.Identity, latDeg, lonDeg, h)
+				}
+			} else if opts != nil && opts.Verbose {
+				log.Printf("gsof verbose group=%q identity=%q type=0x02 parse failed (need 24 bytes, got %d)",
+					opts.GroupID, opts.Identity, len(payload))
 			}
 		case 0x10:
 			if ms, w, utcOff, _, ok := gsof.ParseUTCType16(payload); ok {
@@ -136,6 +198,12 @@ func ApplyGSOFBuffer(snap *ReceiverSnapshot, gsofBuf []byte) {
 			}
 		}
 	})
+
+	if recCounts != nil {
+		_, has02 := recCounts[0x02]
+		log.Printf("gsof verbose group=%q identity=%q gsof_buf=%dB flat=%dB subrecords=%d hist=%s type02_present=%v",
+			opts.GroupID, opts.Identity, len(gsofBuf), len(flat), countGSOFSubrecords(recCounts), formatGSOFTypeHistogram(recCounts), has02)
+	}
 
 	if hasUTC {
 		snap.SolutionTime = utcT
