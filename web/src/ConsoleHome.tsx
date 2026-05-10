@@ -52,42 +52,6 @@ function formatNavFirmwareHundredths(raw: string | undefined): string {
   return (n / 100).toFixed(2);
 }
 
-/** Build http:// URL from Go TCP peer address (IPv4 host:port or [IPv6]:port). */
-function remoteAddrHttpHref(remoteAddr: string): string | null {
-  const a = remoteAddr.trim();
-  if (!a) return null;
-  if (a.startsWith("[")) {
-    const m = a.match(/^\[([^\]]+)\](?::(\d+))?$/);
-    if (m) {
-      const inner = m[1];
-      const port = m[2];
-      return port ? `http://[${inner}]:${port}/` : `http://[${inner}]/`;
-    }
-    return null;
-  }
-  const lastColon = a.lastIndexOf(":");
-  if (lastColon > 0) {
-    const tail = a.slice(lastColon + 1);
-    if (/^\d{1,5}$/.test(tail)) {
-      const host = a.slice(0, lastColon);
-      if (!host.includes(":")) {
-        return `http://${host}:${tail}/`;
-      }
-    }
-  }
-  return `http://${a}/`;
-}
-
-function RemoteAddrHttpLink({ addr, style }: { addr: string; style?: CSSProperties }) {
-  const href = remoteAddrHttpHref(addr);
-  if (!href) return <span style={style}>{addr}</span>;
-  return (
-    <a href={href} target="_blank" rel="noopener noreferrer" title={`Open ${href} in a new tab`} style={style}>
-      {addr}
-    </a>
-  );
-}
-
 type ListSortCol =
   | "serial"
   | "receiver_type"
@@ -493,7 +457,7 @@ export default function ConsoleHome() {
                     </td>
                     <td>{r.mode}</td>
                     <td className="muted" style={{ fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace" }}>
-                      <RemoteAddrHttpLink addr={r.remote_addr} />
+                      {r.remote_addr}
                     </td>
                   </tr>
                 ))}
@@ -1067,7 +1031,7 @@ function StatusPanel({ r }: { r: ReceiverSnapshot }) {
           Receiver type <strong>{listReceiverTypeDisplay(r)}</strong>
         </span>
         <span className="muted" style={{ fontSize: 12, fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace" }}>
-          <RemoteAddrHttpLink addr={r.remote_addr} />
+          {r.remote_addr}
         </span>
         <span className="row" style={{ gap: 8, marginLeft: "auto" }}>
           <StreamBadge r={r} />
@@ -1089,9 +1053,7 @@ function StatusPanel({ r }: { r: ReceiverSnapshot }) {
           <tbody>
             <tr>
               <td style={tdL}>TCP peer</td>
-              <td style={tdV}>
-                <RemoteAddrHttpLink addr={r.remote_addr} />
-              </td>
+              <td style={tdV}>{r.remote_addr}</td>
             </tr>
             {r.dcol_ret_serial && (
               <>
