@@ -57,23 +57,6 @@ func ParseLLHType2(payload []byte) (lat, lon, h float64, ok bool) {
 	return lat, lon, h, true
 }
 
-// ParseCodeLLHType62 — record 0x3E: position type + LLH + GPS week/ms when present.
-func ParseCodeLLHType62(payload []byte) (posType int, lat, lon, h float64, gpsWeek int, gpsMs int32, hasTime bool, ok bool) {
-	if len(payload) < 27 {
-		return 0, 0, 0, 0, 0, 0, false, false
-	}
-	posType = int(payload[0])
-	lat, _ = readFloat64BE(payload[1:9])
-	lon, _ = readFloat64BE(payload[9:17])
-	h, _ = readFloat64BE(payload[17:25])
-	if len(payload) >= 33 {
-		gpsWeek = int(binary.BigEndian.Uint16(payload[27:29]))
-		gpsMs = int32(binary.BigEndian.Uint32(payload[29:33]))
-		hasTime = true
-	}
-	return posType, lat, lon, h, gpsWeek, gpsMs, hasTime, true
-}
-
 // ParseECEFDeltaType6 — record 0x06, 24 bytes: dX,dY,dZ doubles meters.
 func ParseECEFDeltaType6(payload []byte) (dx, dy, dz float64, ok bool) {
 	if len(payload) < 24 {

@@ -1,6 +1,7 @@
 package session
 
 import (
+	"math"
 	"strconv"
 	"time"
 
@@ -31,6 +32,10 @@ func ApplyGSOFBuffer(snap *ReceiverSnapshot, gsofBuf []byte) {
 			}
 		case 0x02:
 			if lat, lon, h, ok := gsof.ParseLLHType2(payload); ok {
+				if math.IsNaN(lat) || math.IsNaN(lon) || math.IsNaN(h) ||
+					math.IsInf(lat, 0) || math.IsInf(lon, 0) || math.IsInf(h, 0) {
+					break
+				}
 				snap.LatRad, snap.LonRad, snap.HeightM = lat, lon, h
 				snap.HasLLH = true
 			}
@@ -50,18 +55,6 @@ func ApplyGSOFBuffer(snap *ReceiverSnapshot, gsofBuf []byte) {
 		case 0x28:
 			if lb, ok := gsof.ParseLBandType40(payload); ok {
 				snap.LBandStatus = lb
-			}
-		case 0x3E:
-			if pt, lat, lon, h, gw, gm, hasT, ok := gsof.ParseCodeLLHType62(payload); ok {
-				snap.PositionType = pt
-				snap.HasPositionType = true
-				snap.PositionTypeLabel = PositionTypeLabel(pt)
-				snap.LatRad, snap.LonRad, snap.HeightM = lat, lon, h
-				snap.HasLLH = true
-				if hasT {
-					gpsWeek, gpsMs = gw, gm
-					hasGPSTime = true
-				}
 			}
 		case 0x07:
 			if tp, ok := gsof.ParseTangentPlaneENUType7(payload); ok {

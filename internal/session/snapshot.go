@@ -77,7 +77,7 @@ type ReceiverSnapshot struct {
 	PositionType      int       `json:"position_type"`
 	PositionTypeLabel string    `json:"position_type_label"`
 	HasPositionType   bool      `json:"has_position_type"`
-	// Solution epoch from GSOF time records (0x10 UTC preferred over 0x01 / 0x3E GPS week).
+	// Solution epoch from GSOF time records (0x10 UTC preferred over 0x01 GPS week/ms).
 	SolutionTime    time.Time `json:"solution_time,omitempty"`
 	TimeSource      string    `json:"time_source,omitempty"` // UTC | GPS
 	SolutionGPSWeek int       `json:"solution_gps_week,omitempty"`
@@ -305,7 +305,7 @@ func (s *Store) PurgeOfflineBefore(cutoff time.Time) int {
 	return n
 }
 
-// PositionFixLabels maps GSOF position type byte (records 38 / 62) to the official
+// PositionFixLabels maps GSOF position type byte (record 38 / type 0x26) to the official
 // “Position Fix Type” plate name. Codes 0–51 per Trimble GSOF documentation.
 var PositionFixLabels = map[int]string{
 	0:  "No Fix or Old Position Fix",
