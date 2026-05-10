@@ -121,15 +121,26 @@ export type DCOLRetSerial = {
   base_ngs_ant_descriptor?: string;
 };
 
-/** DCOL 43h / 44h — GETSESSTN session + station summaries at connect; NAK flags per sub-query. */
-export type DCOLSurveySessions = {
+/** DCOL 43h / 44h — GETSESSTN individual data logging sessions 0 and 1 at connect. */
+export type DCOLIndividualSession = {
+  session_index: number;
+  session_id?: string;
+  epoch_interval_tenths?: number;
+  station_index?: number;
+  survey_sched_mode?: number;
+  elevation_mask_deg?: number;
+  minimum_svs?: number;
+  pos_storage_rate?: number;
+  type_of_positions?: number;
+  reference_height_m?: number;
+};
+
+export type DCOLDataLoggingSessions = {
   received_at: string;
-  session_query_nak?: boolean;
-  station_query_nak?: boolean;
-  session_count: number;
-  session_items?: { index: number; id: string }[];
-  station_count: number;
-  station_items?: { index: number; id: string }[];
+  session_0?: DCOLIndividualSession;
+  session_1?: DCOLIndividualSession;
+  session_0_nak?: boolean;
+  session_1_nak?: boolean;
 };
 
 export type ReceiverSnapshot = {
@@ -190,7 +201,7 @@ export type ReceiverSnapshot = {
   last_config_json?: string;
   config_status?: string;
   dcol_ret_serial?: DCOLRetSerial;
-  dcol_survey_sessions?: DCOLSurveySessions;
+  dcol_data_logging_sessions?: DCOLDataLoggingSessions;
 };
 
 export type GroupInfo = {

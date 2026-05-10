@@ -50,18 +50,13 @@ type DCOLRetSerialSnapshot struct {
 	ReceivedAt time.Time `json:"received_at"`
 }
 
-// DCOLSurveySessionsSnapshot holds GETSESSTN results (RETSESSTN 44h): session and/or station
-// summaries, or NAK (15h). Modern firmware may populate station summary while session summary is empty.
-type DCOLSurveySessionsSnapshot struct {
-	ReceivedAt time.Time `json:"received_at"`
-	// SessionQueryNAK is set when DCOL NAK applies to GETSESSTN with session summary (request byte 0 = 2).
-	SessionQueryNAK bool `json:"session_query_nak,omitempty"`
-	// StationQueryNAK is set when NAK applies to GETSESSTN with station summary (request byte 0 = 3).
-	StationQueryNAK bool                      `json:"station_query_nak,omitempty"`
-	SessionCount    int                       `json:"session_count"`
-	SessionItems    []dcolserial.SummaryEntry `json:"session_items,omitempty"`
-	StationCount    int                       `json:"station_count"`
-	StationItems    []dcolserial.SummaryEntry `json:"station_items,omitempty"`
+// DCOLDataLoggingSessionsSnapshot holds GETSESSTN individual session (indicator 0) replies for session indices 0 and 1 at TCP connect.
+type DCOLDataLoggingSessionsSnapshot struct {
+	ReceivedAt  time.Time                         `json:"received_at"`
+	Session0    *dcolserial.IndividualSessionInfo `json:"session_0,omitempty"`
+	Session1    *dcolserial.IndividualSessionInfo `json:"session_1,omitempty"`
+	Session0NAK bool                              `json:"session_0_nak,omitempty"`
+	Session1NAK bool                              `json:"session_1_nak,omitempty"`
 }
 
 // VectorCardSnapshot groups GSOF record 7 (tangent-plane ENU) and record 28 (receiver diagnostics) for the UI.
@@ -108,8 +103,8 @@ type ReceiverSnapshot struct {
 	RadioInfo *gsof.RadioInfo `json:"radio_info,omitempty"`
 	// DCOL report 07h RETSERIAL (reply to command 06h GETSERIAL) — normal DCOL, not GSOF.
 	DCOLRetSerial *DCOLRetSerialSnapshot `json:"dcol_ret_serial,omitempty"`
-	// DCOL 43h / 44h session + station summary at TCP connect (may be NAK 15h per sub-query).
-	DCOLSurveySessions *DCOLSurveySessionsSnapshot `json:"dcol_survey_sessions,omitempty"`
+	// DCOL 43h / 44h — GETSESSTN individual data logging sessions 0 and 1 at TCP connect (may NAK).
+	DCOLDataLoggingSessions *DCOLDataLoggingSessionsSnapshot `json:"dcol_data_logging_sessions,omitempty"`
 	// xFill hints from position type extended (GSOF 0x26 NETWORK_FLAGS2 when present)
 	XFillPresent bool `json:"xfill_present,omitempty"`
 	XFillReady   bool `json:"xfill_ready,omitempty"`

@@ -161,45 +161,44 @@ func (s *ConnSession) handleMessage(m dcol.Message) {
 		}
 	}
 
-	// GETSESSTN (43h) → RETSESSTN (44h) session/station summaries, or NAK (15h).
+	// GETSESSTN (43h) → RETSESSTN (44h) individual sessions 0 / 1, or NAK (15h).
 	if m.PacketType == dcolserial.TypeRETSESSTN && len(m.Payload) > 0 {
-		if ret, ok := dcolserial.ParseRetSesstnPayload(m.Payload); ok {
-			if snap.DCOLSurveySessions == nil {
-				snap.DCOLSurveySessions = &DCOLSurveySessionsSnapshot{}
+		if ret, ok := dcolserial.ParseRetSesstnPayload(m.Payload); ok && ret.IndividualSession != nil {
+			if snap.DCOLDataLoggingSessions == nil {
+				snap.DCOLDataLoggingSessions = &DCOLDataLoggingSessionsSnapshot{}
 			}
-			ss := snap.DCOLSurveySessions
-			ss.ReceivedAt = time.Now()
-			if ret.SessionSummary != nil {
-				ss.SessionQueryNAK = false
-				ss.SessionCount = ret.SessionSummary.Count
-				ss.SessionItems = append([]dcolserial.SummaryEntry(nil), ret.SessionSummary.Items...)
-			}
-			if ret.StationSummary != nil {
-				ss.StationQueryNAK = false
-				ss.StationCount = ret.StationSummary.Count
-				ss.StationItems = append([]dcolserial.SummaryEntry(nil), ret.StationSummary.Items...)
+			dl := snap.DCOLDataLoggingSessions
+			dl.ReceivedAt = time.Now()
+			inf := *ret.IndividualSession
+			switch inf.SessionIndex {
+			case 0:
+				dl.Session0 = &inf
+				dl.Session0NAK = false
+			case 1:
+				dl.Session1 = &inf
+				dl.Session1NAK = false
 			}
 		}
 	}
 	if m.PacketType == dcolserial.TypeNAK && len(m.Payload) >= 1 && m.Payload[0] == dcolserial.TypeGETSESSTN {
-		if snap.DCOLSurveySessions == nil {
-			snap.DCOLSurveySessions = &DCOLSurveySessionsSnapshot{}
+		if snap.DCOLDataLoggingSessions == nil {
+			snap.DCOLDataLoggingSessions = &DCOLDataLoggingSessionsSnapshot{}
 		}
-		ss := snap.DCOLSurveySessions
-		ss.ReceivedAt = time.Now()
-		if len(m.Payload) >= 2 {
-			switch dcolserial.SessionStationReq(m.Payload[1]) {
-			case dcolserial.ReqSessionSummary:
-				ss.SessionQueryNAK = true
-			case dcolserial.ReqStationSummary:
-				ss.StationQueryNAK = true
+		dl := snap.DCOLDataLoggingSessions
+		dl.ReceivedAt = time.Now()
+		if len(m.Payload) >= 3 && dcolserial.SessionStationReq(m.Payload[1]) == dcolserial.ReqIndividualSession {
+			switch m.Payload[2] {
+			case 0:
+				dl.Session0NAK = true
+			case 1:
+				dl.Session1NAK = true
 			default:
-				ss.SessionQueryNAK = true
-				ss.StationQueryNAK = true
+				dl.Session0NAK = true
+				dl.Session1NAK = true
 			}
 		} else {
-			ss.SessionQueryNAK = true
-			ss.StationQueryNAK = true
+			dl.Session0NAK = true
+			dl.Session1NAK = true
 		}
 	}
 
@@ -230,7 +229,7 @@ func (s *ConnSession) handleMessage(m dcol.Message) {
 	s.store.Set(s.storeKey, snap)
 }
 
-// sendStartupDCOLQueries sends connection-time DCOL commands (GET SERIAL 06h; GETSESSTN session + station summary 43h).
+// sendStartupDCOLQueries sends connection-time DCOL commands (GET SERIAL 06h; GETSESSTN individual sessions 0 and 1).
 // Periodic / cyclic DCOL polling can be added separately from this one-shot path.
 func (s *ConnSession) sendStartupDCOLQueries() {
 	s.writeMu.Lock()
@@ -242,10 +241,8 @@ func (s *ConnSession) sendStartupDCOLQueries() {
 		log.Printf("DCOL GETSERIAL write group_id=%q remote=%s: %v", s.group.ID, s.conn.RemoteAddr(), werr)
 	}
 
-	for _, pl := range [][]byte{
-		dcolserial.GETSesstnPayload(dcolserial.ReqSessionSummary, 0),
-		dcolserial.GETSesstnPayload(dcolserial.ReqStationSummary, 0),
-	} {
+	for _, idx := range []byte{0, 1} {
+		pl := dcolserial.GETSesstnPayload(dcolserial.ReqIndividualSession, idx)
 		if fr, err := trimblecfg.Pack(dcolserial.TypeGETSESSTN, pl); err != nil {
 			log.Printf("DCOL GETSESSTN pack error group_id=%q: %v", s.group.ID, err)
 		} else if _, werr := s.conn.Write(fr); werr != nil {

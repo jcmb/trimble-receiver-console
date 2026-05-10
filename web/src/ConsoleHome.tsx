@@ -1100,52 +1100,61 @@ function StatusPanel({ r }: { r: ReceiverSnapshot }) {
       </div>
 
       <div className="status-card">
-        <h3 className="status-card-title mixed-case">Survey / station lists (DCOL)</h3>
+        <h3 className="status-card-title mixed-case">Data logging sessions (DCOL)</h3>
         <p className="muted" style={{ margin: "0 0 10px", fontSize: 12, lineHeight: 1.45 }}>
-          From GETSESSTN (43h) at connect — legacy survey/station tables. Internal file logging may not appear here on
-          newer firmware; the Summary section shows GSOF internal logging capacity when reported.
+          GETSESSTN individual session for indices 0 and 1 at TCP connect (RETSESSTN 44h, indicator 0).
         </p>
-        {!r.dcol_survey_sessions && r.online && (
+        {!r.dcol_data_logging_sessions && r.online && (
           <p className="muted" style={{ margin: 0, fontSize: 13 }}>
-            Waiting for RETSESSTN (44h) session/station summaries…
+            Waiting for RETSESSTN individual session data…
           </p>
         )}
-        {!r.dcol_survey_sessions && !r.online && <p className="muted" style={{ margin: 0, fontSize: 13 }}>—</p>}
-        {r.dcol_survey_sessions && (
+        {!r.dcol_data_logging_sessions && !r.online && <p className="muted" style={{ margin: 0, fontSize: 13 }}>—</p>}
+        {r.dcol_data_logging_sessions && (
           <>
             <div style={{ marginBottom: 14 }}>
               <span
                 className="muted"
                 style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.04em" }}
               >
-                Sessions
+                Session 0
               </span>
-              {r.dcol_survey_sessions.session_query_nak ? (
+              {r.dcol_data_logging_sessions.session_0_nak ? (
                 <p className="muted" style={{ margin: "6px 0 0", fontSize: 13 }}>
-                  Not returned — NAK for GETSESSTN session summary request.
+                  Not returned — NAK for GETSESSTN individual session index 0.
                 </p>
-              ) : r.dcol_survey_sessions.session_count === 0 &&
-                (r.dcol_survey_sessions.session_items?.length ?? 0) === 0 ? (
-                <p className="muted" style={{ margin: "6px 0 0", fontSize: 13 }}>
-                  No entries in session summary.
-                </p>
+              ) : r.dcol_data_logging_sessions.session_0 ? (
+                <dl
+                  style={{
+                    margin: "8px 0 0",
+                    display: "grid",
+                    gridTemplateColumns: "minmax(7rem, auto) 1fr",
+                    gap: "6px 12px",
+                    fontSize: 13,
+                  }}
+                >
+                  <dt className="muted" style={{ margin: 0 }}>
+                    ID
+                  </dt>
+                  <dd style={{ margin: 0, fontFamily: "ui-monospace, monospace" }}>
+                    {r.dcol_data_logging_sessions.session_0.session_id?.trim() || "—"}
+                  </dd>
+                  <dt className="muted" style={{ margin: 0 }}>
+                    Rate / storage
+                  </dt>
+                  <dd style={{ margin: 0 }}>
+                    epoch Δ {(r.dcol_data_logging_sessions.session_0.epoch_interval_tenths ?? 0) / 10}s · pos
+                    storage {r.dcol_data_logging_sessions.session_0.pos_storage_rate ?? "—"}
+                  </dd>
+                  <dt className="muted" style={{ margin: 0 }}>
+                    Station idx
+                  </dt>
+                  <dd style={{ margin: 0 }}>{r.dcol_data_logging_sessions.session_0.station_index ?? "—"}</dd>
+                </dl>
               ) : (
-                <table style={{ width: "100%", borderCollapse: "collapse", marginTop: 6 }}>
-                  <thead>
-                    <tr>
-                      <th style={th}>Idx</th>
-                      <th style={th}>Session ID</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {(r.dcol_survey_sessions.session_items ?? []).map((row, i) => (
-                      <tr key={`s-${row.index}-${row.id}-${i}`}>
-                        <td style={tdV}>{row.index}</td>
-                        <td style={tdV}>{row.id?.trim() || "—"}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                <p className="muted" style={{ margin: "6px 0 0", fontSize: 13 }}>
+                  No data for session 0.
+                </p>
               )}
             </div>
             <div>
@@ -1153,46 +1162,56 @@ function StatusPanel({ r }: { r: ReceiverSnapshot }) {
                 className="muted"
                 style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.04em" }}
               >
-                Stations
+                Session 1
               </span>
-              {r.dcol_survey_sessions.station_query_nak ? (
+              {r.dcol_data_logging_sessions.session_1_nak ? (
                 <p className="muted" style={{ margin: "6px 0 0", fontSize: 13 }}>
-                  Not returned — NAK for GETSESSTN station summary request.
+                  Not returned — NAK for GETSESSTN individual session index 1.
                 </p>
-              ) : r.dcol_survey_sessions.station_count === 0 &&
-                (r.dcol_survey_sessions.station_items?.length ?? 0) === 0 ? (
-                <p className="muted" style={{ margin: "6px 0 0", fontSize: 13 }}>
-                  No entries in station summary.
-                </p>
+              ) : r.dcol_data_logging_sessions.session_1 ? (
+                <dl
+                  style={{
+                    margin: "8px 0 0",
+                    display: "grid",
+                    gridTemplateColumns: "minmax(7rem, auto) 1fr",
+                    gap: "6px 12px",
+                    fontSize: 13,
+                  }}
+                >
+                  <dt className="muted" style={{ margin: 0 }}>
+                    ID
+                  </dt>
+                  <dd style={{ margin: 0, fontFamily: "ui-monospace, monospace" }}>
+                    {r.dcol_data_logging_sessions.session_1.session_id?.trim() || "—"}
+                  </dd>
+                  <dt className="muted" style={{ margin: 0 }}>
+                    Rate / storage
+                  </dt>
+                  <dd style={{ margin: 0 }}>
+                    epoch Δ {(r.dcol_data_logging_sessions.session_1.epoch_interval_tenths ?? 0) / 10}s · pos
+                    storage {r.dcol_data_logging_sessions.session_1.pos_storage_rate ?? "—"}
+                  </dd>
+                  <dt className="muted" style={{ margin: 0 }}>
+                    Station idx
+                  </dt>
+                  <dd style={{ margin: 0 }}>{r.dcol_data_logging_sessions.session_1.station_index ?? "—"}</dd>
+                </dl>
               ) : (
-                <table style={{ width: "100%", borderCollapse: "collapse", marginTop: 6 }}>
-                  <thead>
-                    <tr>
-                      <th style={th}>Idx</th>
-                      <th style={th}>Station ID</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {(r.dcol_survey_sessions.station_items ?? []).map((row, i) => (
-                      <tr key={`t-${row.index}-${row.id}-${i}`}>
-                        <td style={tdV}>{row.index}</td>
-                        <td style={tdV}>{row.id?.trim() || "—"}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                <p className="muted" style={{ margin: "6px 0 0", fontSize: 13 }}>
+                  No data for session 1.
+                </p>
               )}
             </div>
             {r.has_power_logging &&
               r.logging_hours_remain != null &&
               r.logging_hours_remain > 0 &&
-              r.dcol_survey_sessions.session_count === 0 &&
-              r.dcol_survey_sessions.station_count === 0 &&
-              !r.dcol_survey_sessions.session_query_nak &&
-              !r.dcol_survey_sessions.station_query_nak && (
+              !r.dcol_data_logging_sessions.session_0 &&
+              !r.dcol_data_logging_sessions.session_1 &&
+              !r.dcol_data_logging_sessions.session_0_nak &&
+              !r.dcol_data_logging_sessions.session_1_nak && (
                 <p className="muted" style={{ margin: "12px 0 0", fontSize: 12, lineHeight: 1.45 }}>
-                  GSOF reports ~{r.logging_hours_remain.toFixed(1)} h of internal storage remaining — logging may be
-                  active even when DCOL session/station tables are empty on this receiver.
+                  GSOF reports ~{r.logging_hours_remain.toFixed(1)} h of internal storage remaining — if session blocks are
+                  empty, firmware layout may differ from the ICD used here.
                 </p>
               )}
           </>
