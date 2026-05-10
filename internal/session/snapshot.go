@@ -50,15 +50,6 @@ type DCOLRetSerialSnapshot struct {
 	ReceivedAt time.Time `json:"received_at"`
 }
 
-// DCOLDataLoggingSessionsSnapshot holds GETSESSTN individual session (indicator 0) replies for session indices 0 and 1 at TCP connect.
-type DCOLDataLoggingSessionsSnapshot struct {
-	ReceivedAt  time.Time                         `json:"received_at"`
-	Session0    *dcolserial.IndividualSessionInfo `json:"session_0,omitempty"`
-	Session1    *dcolserial.IndividualSessionInfo `json:"session_1,omitempty"`
-	Session0NAK bool                              `json:"session_0_nak,omitempty"`
-	Session1NAK bool                              `json:"session_1_nak,omitempty"`
-}
-
 // VectorCardSnapshot groups GSOF record 7 (tangent-plane ENU) and record 28 (receiver diagnostics) for the UI.
 type VectorCardSnapshot struct {
 	TangentPlane *gsof.TangentPlaneENU       `json:"tangent_plane,omitempty"`
@@ -103,8 +94,6 @@ type ReceiverSnapshot struct {
 	RadioInfo *gsof.RadioInfo `json:"radio_info,omitempty"`
 	// DCOL report 07h RETSERIAL (reply to command 06h GETSERIAL) — normal DCOL, not GSOF.
 	DCOLRetSerial *DCOLRetSerialSnapshot `json:"dcol_ret_serial,omitempty"`
-	// DCOL 43h / 44h — GETSESSTN individual data logging sessions 0 and 1 at TCP connect (may NAK).
-	DCOLDataLoggingSessions *DCOLDataLoggingSessionsSnapshot `json:"dcol_data_logging_sessions,omitempty"`
 	// xFill hints from position type extended (GSOF 0x26 NETWORK_FLAGS2 when present)
 	XFillPresent bool `json:"xfill_present,omitempty"`
 	XFillReady   bool `json:"xfill_ready,omitempty"`
