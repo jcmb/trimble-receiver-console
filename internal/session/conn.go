@@ -29,6 +29,9 @@ type ConnSession struct {
 	writeMu    sync.Mutex
 	lastSerial string
 
+	// serialConnCounted ensures we increment GroupRuntime serial TCP counter once per session.
+	serialConnCounted bool
+
 	// Diagnostics
 	mu             sync.Mutex
 	gsofSeenLogged bool // log once that GSOF is present on this connection
@@ -65,6 +68,11 @@ func NewConnSession(c net.Conn, gr *GroupRuntime, cfg *appcfg.Config) *ConnSessi
 		mode:     configured,
 		openedAt: now,
 	}
+}
+
+// CloseConn closes the TCP connection (e.g. retention purge for unidentified sessions).
+func (s *ConnSession) CloseConn() error {
+	return s.conn.Close()
 }
 
 func (s *ConnSession) Run() {
@@ -164,6 +172,7 @@ func (s *ConnSession) handleMessage(m dcol.Message) {
 	snap.Mode = EffectiveSnapshotMode(s.mode, snap.DCOLRetSerial != nil)
 
 	if len(m.GSOFBuffer) == 0 {
+		s.maybeBumpSerialConnection(snap)
 		s.store.Set(s.storeKey, snap)
 		return
 	}
@@ -185,7 +194,20 @@ func (s *ConnSession) handleMessage(m dcol.Message) {
 		s.storeKey = snap.Serial
 	}
 	s.lastSerial = snap.Serial
+	s.maybeBumpSerialConnection(snap)
 	s.store.Set(s.storeKey, snap)
+}
+
+func (s *ConnSession) maybeBumpSerialConnection(snap *ReceiverSnapshot) {
+	if s.serialConnCounted || snap == nil {
+		return
+	}
+	k := ReceiverIdentityKey(snap)
+	if !strings.HasPrefix(k, "sn:") {
+		return
+	}
+	s.serialConnCounted = true
+	s.group.IncrementSerialConnection(k)
 }
 
 // sendStartupDCOLQueries sends connection-time DCOL commands (GET SERIAL 06h).

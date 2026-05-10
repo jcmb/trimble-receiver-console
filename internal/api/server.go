@@ -126,7 +126,7 @@ func (s *Server) handleGroupsPath(w http.ResponseWriter, r *http.Request) {
 	}
 	if len(parts) >= 2 && parts[1] == "receivers" {
 		if len(parts) == 2 && r.Method == http.MethodGet {
-			list := gr.Store.List()
+			list := gr.AttachSerialConnCounts(gr.Store.ListUniqueBySerial())
 			w.Header().Set("Content-Type", "application/json")
 			_ = json.NewEncoder(w).Encode(map[string]interface{}{
 				"receivers":       list,
@@ -147,8 +147,13 @@ func (s *Server) handleGroupsPath(w http.ResponseWriter, r *http.Request) {
 				http.Error(w, "not found", http.StatusNotFound)
 				return
 			}
+			cp := *snap
+			k := session.ReceiverIdentityKey(&cp)
+			if strings.HasPrefix(k, "sn:") {
+				cp.SerialConnectionCount = gr.SerialConnectionCount(k)
+			}
 			w.Header().Set("Content-Type", "application/json")
-			_ = json.NewEncoder(w).Encode(snap)
+			_ = json.NewEncoder(w).Encode(&cp)
 			return
 		}
 		if len(parts) == 4 && parts[3] == "config" && r.Method == http.MethodPost {
@@ -210,7 +215,7 @@ func (s *Server) handleStream(w http.ResponseWriter, r *http.Request) {
 		case <-ctx.Done():
 			return
 		case <-tick.C:
-			list := gr.Store.List()
+			list := gr.AttachSerialConnCounts(gr.Store.ListUniqueBySerial())
 			b, err := json.Marshal(map[string]interface{}{
 				"receivers":       list,
 				"console_version": consoleVersionPayload(),

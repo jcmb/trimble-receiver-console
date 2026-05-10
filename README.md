@@ -26,6 +26,8 @@ export TRIMBLE_CONFIG=$PWD/config.yaml
 
 Receivers that have disconnected stay in the UI as **offline** until **7 days** after their last update, then are removed automatically (hourly GC).
 
+TCP connections that never report a serial, DCOL RET SERIAL (07h), or GSOF are closed and dropped from the list after **5 minutes** (checked every 30 seconds).
+
 ## Build
 
 ```bash

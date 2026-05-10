@@ -12,6 +12,9 @@ import (
 // ReceiverOfflineRetention is how long we keep offline receiver rows after last activity/disconnect.
 const ReceiverOfflineRetention = 7 * 24 * time.Hour
 
+// UndetailedReceiverRetention drops TCP attaches that never reported serial, DCOL RET SERIAL, or GSOF.
+const UndetailedReceiverRetention = 5 * time.Minute
+
 // GroupRuntime is runtime state for one configured group.
 type GroupRuntime struct {
 	ID        string
@@ -20,6 +23,9 @@ type GroupRuntime struct {
 	People    []string
 	Store     *Store
 	Registry  *Registry
+
+	serialConnMu    sync.Mutex
+	serialConnCount map[string]int64 // keyed by ReceiverIdentityKey ("sn:…")
 }
 
 // Hub owns per-group stores and registries.
@@ -71,18 +77,32 @@ func (h *Hub) List() []*GroupRuntime {
 	return h.OrderedGroups()
 }
 
-// StartRetentionGC periodically removes offline receivers older than ReceiverOfflineRetention.
+// StartRetentionGC periodically removes stale offline receivers and bare unidentified connections.
 func (h *Hub) StartRetentionGC(ctx context.Context) {
-	t := time.NewTicker(1 * time.Hour)
-	defer t.Stop()
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-t.C:
-			h.purgeStale()
+	go func() {
+		t := time.NewTicker(1 * time.Hour)
+		defer t.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-t.C:
+				h.purgeStale()
+			}
 		}
-	}
+	}()
+	go func() {
+		t := time.NewTicker(30 * time.Second)
+		defer t.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-t.C:
+				h.purgeUndetailed()
+			}
+		}
+	}()
 }
 
 func (h *Hub) purgeStale() {
@@ -93,6 +113,15 @@ func (h *Hub) purgeStale() {
 		n := g.Store.PurgeOfflineBefore(cutoff)
 		if n > 0 {
 			log.Printf("retention: removed %d stale offline receiver(s) from group %q", n, g.ID)
+		}
+	}
+}
+
+func (h *Hub) purgeUndetailed() {
+	for _, g := range h.OrderedGroups() {
+		closed, deleted := g.Store.PurgeUndetailed(g.Registry, time.Now(), UndetailedReceiverRetention)
+		if closed > 0 || deleted > 0 {
+			log.Printf("undetailed retention: group %q closed %d session(s), removed %d row(s)", g.ID, closed, deleted)
 		}
 	}
 }

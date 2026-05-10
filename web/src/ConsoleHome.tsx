@@ -54,6 +54,7 @@ function formatNavFirmwareHundredths(raw: string | undefined): string {
 
 type ListSortCol =
   | "serial"
+  | "serial_connections"
   | "receiver_type"
   | "firmware"
   | "position_type"
@@ -67,6 +68,8 @@ type ListSortCol =
 function sortKeySerial(r: ReceiverSnapshot): string {
   const long = r.dcol_ret_serial?.long_serial?.trim();
   if (long) return long.toLowerCase();
+  const short = r.dcol_ret_serial?.receiver_serial_short?.trim();
+  if (short) return short.toLowerCase();
   const s = r.serial?.trim();
   if (s) return s.toLowerCase();
   return `anon:${r.remote_addr}`.toLowerCase();
@@ -76,6 +79,8 @@ function sortKeySerial(r: ReceiverSnapshot): string {
 function displaySerial(r: ReceiverSnapshot): string {
   const long = r.dcol_ret_serial?.long_serial?.trim();
   if (long) return long;
+  const short = r.dcol_ret_serial?.receiver_serial_short?.trim();
+  if (short) return short;
   return r.serial?.trim() || "—";
 }
 
@@ -89,6 +94,7 @@ function defaultListSortAsc(col: ListSortCol): boolean {
   switch (col) {
     case "power":
     case "logging":
+    case "serial_connections":
       return false;
     default:
       return true;
@@ -102,6 +108,7 @@ function listSortMark(active: boolean, asc: boolean): string {
 
 const LIST_SORT_HEADERS: { label: string; col: ListSortCol }[] = [
   { label: "Serial", col: "serial" },
+  { label: "TCP sessions", col: "serial_connections" },
   { label: "Receiver type", col: "receiver_type" },
   { label: "Firmware", col: "firmware" },
   { label: "Position type", col: "position_type" },
@@ -407,6 +414,11 @@ export default function ConsoleHome() {
                         {displaySerial(r)}
                       </button>
                     </td>
+                    <td style={{ fontSize: 13, fontVariantNumeric: "tabular-nums" }}>
+                      {r.serial_connection_count != null && r.serial_connection_count > 0
+                        ? String(r.serial_connection_count)
+                        : "—"}
+                    </td>
                     <td className="muted" style={{ fontSize: 13 }}>
                       {listReceiverTypeDisplay(r)}
                     </td>
@@ -562,6 +574,9 @@ function compareReceivers(a: ReceiverSnapshot, b: ReceiverSnapshot, col: ListSor
   switch (col) {
     case "serial":
       v = sortKeySerial(a).localeCompare(sortKeySerial(b));
+      break;
+    case "serial_connections":
+      v = (a.serial_connection_count ?? 0) - (b.serial_connection_count ?? 0);
       break;
     case "receiver_type":
       v = listReceiverTypeDisplay(a).localeCompare(listReceiverTypeDisplay(b));
@@ -1025,8 +1040,13 @@ function StatusPanel({ r }: { r: ReceiverSnapshot }) {
           Group <strong>{r.group_id}</strong>
         </span>
         <span>
-          Serial <strong>{r.serial || "—"}</strong>
+          Serial <strong>{displaySerial(r)}</strong>
         </span>
+        {r.serial_connection_count != null && r.serial_connection_count > 0 ? (
+          <span className="muted">
+            TCP sessions <strong>{r.serial_connection_count}</strong>
+          </span>
+        ) : null}
         <span className="muted">
           Receiver type <strong>{listReceiverTypeDisplay(r)}</strong>
         </span>
