@@ -63,7 +63,7 @@ function compareSv(a: SVInfo, b: SVInfo, col: SortCol, asc: boolean): number {
   let v = 0;
   switch (col) {
     case "system":
-      v = SV_SYSTEM_NAMES[sysIndex(a)].localeCompare(SV_SYSTEM_NAMES[sysIndex(b)]);
+      v = sysIndex(a) - sysIndex(b);
       break;
     case "prn":
       v = a.prn - b.prn;
@@ -126,8 +126,8 @@ export function SVTrackingCard({ svs }: { svs: SVInfo[] }) {
   type PanelTab = "all" | number;
   const [panelTab, setPanelTab] = useState<PanelTab>("all");
 
-  const [sortCol, setSortCol] = useState<SortCol>("elev");
-  const [sortAsc, setSortAsc] = useState(false);
+  const [sortCol, setSortCol] = useState<SortCol>("system");
+  const [sortAsc, setSortAsc] = useState(true);
 
   useEffect(() => {
     if (panelTab === "all") return;
@@ -202,10 +202,17 @@ export function SVTrackingCard({ svs }: { svs: SVInfo[] }) {
     fontSize: 12,
   };
 
-  /** Tracking codes — keep full label visible (no ellipsis squeeze into C/N column). */
+  const bandDivider: CSSProperties = {
+    borderLeft: "2px solid var(--table-border)",
+  };
+
+  /** Tracking codes — centered under “Tracking” headers, distinct from right-aligned C/N. */
   const tdTrack: CSSProperties = {
     ...tdMono,
     whiteSpace: "nowrap",
+    textAlign: "center",
+    paddingLeft: 10,
+    paddingRight: 10,
   };
 
   const groupTh: CSSProperties = {
@@ -230,6 +237,14 @@ export function SVTrackingCard({ svs }: { svs: SVInfo[] }) {
   const thSubFirst: CSSProperties = {
     ...thSub,
     borderLeft: "1px solid var(--table-border)",
+  };
+  const thSubL5First: CSSProperties = {
+    ...thSub,
+    ...bandDivider,
+  };
+  const groupThL5: CSSProperties = {
+    ...groupTh,
+    ...bandDivider,
   };
 
   if (tracked.length === 0) {
@@ -315,7 +330,7 @@ export function SVTrackingCard({ svs }: { svs: SVInfo[] }) {
               <th colSpan={2} style={groupTh}>
                 L2
               </th>
-              <th colSpan={2} style={groupTh}>
+              <th colSpan={2} style={groupThL5}>
                 L5
               </th>
             </tr>
@@ -340,7 +355,7 @@ export function SVTrackingCard({ svs }: { svs: SVInfo[] }) {
                   Tracking{sortMark("l2tr")}
                 </button>
               </th>
-              <th style={thSub}>
+              <th style={thSubL5First}>
                 <button type="button" style={{ ...btnReset, textAlign: "center" }} onClick={() => onSort("l5cn")}>
                   C/N₀{sortMark("l5cn")}
                 </button>
@@ -382,7 +397,7 @@ export function SVTrackingCard({ svs }: { svs: SVInfo[] }) {
                   </td>
                   <td style={tdTrack}>{dispTrack(sv.track_l2)}</td>
                   <td
-                    style={tdNum}
+                    style={{ ...tdNum, ...bandDivider }}
                     title={
                       sv.cn0_l56_db_hz != null && sv.cn0_l56_db_hz <= 0 ? "Not tracking on L5" : undefined
                     }

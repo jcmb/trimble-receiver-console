@@ -215,6 +215,13 @@ code {
   background: var(--tab-active-bg);
 }
 
+.nav-tab:disabled,
+.nav-tab.nav-tab-disabled {
+  color: var(--app-muted);
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
 .config-tab-strip-readonly .nav-tab {
   opacity: 0.55;
 }
@@ -264,4 +271,53 @@ pre {
   color: var(--card-title);
   letter-spacing: 0.03em;
   text-transform: uppercase;
+}
+
+/* Receiver detail tab: Status | Sky / SV tracking on wide; narrow = Status, Config, Sky, SV */
+.console-detail-layout {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: auto auto auto;
+  grid-template-areas:
+    "detail-status detail-sky"
+    "detail-status detail-sv"
+    "detail-config detail-config";
+}
+.console-detail-status {
+  grid-area: detail-status;
+  align-self: start;
+}
+.console-detail-sky {
+  grid-area: detail-sky;
+}
+.console-detail-sv {
+  grid-area: detail-sv;
+}
+.console-detail-config {
+  grid-area: detail-config;
+}
+
+@media (max-width: 860px) {
+  .console-detail-layout {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto;
+    grid-template-areas: none;
+  }
+  .console-detail-status {
+    grid-row: 1;
+    grid-column: 1;
+  }
+  .console-detail-config {
+    grid-row: 2;
+    grid-column: 1;
+  }
+  .console-detail-sky {
+    grid-row: 3;
+    grid-column: 1;
+  }
+  .console-detail-sv {
+    grid-row: 4;
+    grid-column: 1;
+  }
 }

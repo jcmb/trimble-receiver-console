@@ -482,37 +482,35 @@ export default function ConsoleHome() {
         )}
 
         {tab === "detail" && (
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-            <div className="panel">
+          <div className="console-detail-layout">
+            <div className="panel console-detail-status">
               <h2 style={{ marginTop: 0 }}>Status</h2>
               {!selected && <p className="muted">Select a receiver from the list or map.</p>}
               {selected && <StatusPanel r={selected} />}
             </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-              <div className="panel">
-                <h2 style={{ marginTop: 0 }}>Sky plot</h2>
-                {!selected && <p className="muted">Select a receiver from the list or map.</p>}
-                {selected && selected.satellites?.length ? (
-                  <SkyPlot svs={selected.satellites} />
-                ) : selected ? (
-                  <p className="muted">No SV geometry (enable GSOF ALL SV detail, record 48 or 34).</p>
-                ) : null}
-              </div>
-              <div className="panel">
-                <h2 style={{ marginTop: 0 }}>SV tracking</h2>
-                {!selected && <p className="muted">Select a receiver from the list or map.</p>}
-                {selected && selected.satellites?.length ? (
-                  <SVTrackingCard svs={selected.satellites} />
-                ) : selected ? (
-                  <p className="muted">No SV geometry (enable GSOF ALL SV detail, record 48 or 34).</p>
-                ) : null}
-              </div>
-            </div>
-            <div className="panel" style={{ gridColumn: "1 / -1" }}>
+            <div className="panel console-detail-config">
               <h2 style={{ marginTop: 0 }}>Configuration</h2>
               {!selected && <p className="muted">Select a receiver from the list or map.</p>}
               {selected && groupId ? (
                 <ConfigForm groupId={groupId} receiverKey={keyOf(selected)} mode={selected.mode} />
+              ) : null}
+            </div>
+            <div className="panel console-detail-sky">
+              <h2 style={{ marginTop: 0 }}>Sky plot</h2>
+              {!selected && <p className="muted">Select a receiver from the list or map.</p>}
+              {selected && selected.satellites?.length ? (
+                <SkyPlot svs={selected.satellites} />
+              ) : selected ? (
+                <p className="muted">No SV geometry (enable GSOF ALL SV detail, record 48 or 34).</p>
+              ) : null}
+            </div>
+            <div className="panel console-detail-sv">
+              <h2 style={{ marginTop: 0 }}>SV tracking</h2>
+              {!selected && <p className="muted">Select a receiver from the list or map.</p>}
+              {selected && selected.satellites?.length ? (
+                <SVTrackingCard svs={selected.satellites} />
+              ) : selected ? (
+                <p className="muted">No SV geometry (enable GSOF ALL SV detail, record 48 or 34).</p>
               ) : null}
             </div>
           </div>

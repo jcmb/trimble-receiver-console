@@ -15,8 +15,8 @@ const TABS: { id: CfgTab; label: string }[] = [
 ];
 
 export function ConfigForm({
-  groupId,
-  receiverKey,
+  groupId: _groupId,
+  receiverKey: _receiverKey,
   mode,
 }: {
   groupId: string;
@@ -42,7 +42,6 @@ export function ConfigForm({
   const [servers, setServers] = useState([{ ...emptySlot }, { ...emptySlot }, { ...emptySlot }]);
   const [logEn, setLogEn] = useState(false);
   const [logMode, setLogMode] = useState<"high_rate" | "hz1" | "static">("hz1");
-  const [msg, setMsg] = useState<string | null>(null);
 
   const readOnly = mode === "read_only";
 
@@ -51,60 +50,11 @@ export function ConfigForm({
     if (role === "base" && tab === "rover") setTab("general");
   }, [role, tab]);
 
-  async function submit(e: React.FormEvent) {
-    e.preventDefault();
-    if (readOnly) return;
-    setMsg(null);
-    const body: Record<string, unknown> = {
-      role,
-      advanced: {},
-      ibss: {
-        org: ibssOrg,
-        password: ibssPass,
-        servers,
-      },
-    };
-    if (iono !== null) (body.advanced as Record<string, unknown>)["iono_guard"] = iono;
-    if (elev !== "") (body.advanced as Record<string, number>)["elevation_mask_deg"] = parseFloat(elev);
-
-    body["outputs"] = {
-      internal_radio: outIR,
-      serial: outSer,
-      local_ntrip: outNt,
-    };
-
-    if (role === "base") {
-      body["sync_low_latency"] = syncLow;
-      const lat = (parseFloat(refLatDeg) * Math.PI) / 180;
-      const lon = (parseFloat(refLonDeg) * Math.PI) / 180;
-      body["base"] = {
-        antenna_type: antennaType,
-        measurement_method: measMethod,
-        antenna_height_m: parseFloat(antennaH) || 0,
-        ref_lat_rad: Number.isFinite(lat) ? lat : 0,
-        ref_lon_rad: Number.isFinite(lon) ? lon : 0,
-        ref_height_m: parseFloat(refH) || 0,
-      };
-    }
-    body["data_logging"] = { enabled: logEn, mode: logMode };
-
-    const res = await fetch(
-      `/api/groups/${encodeURIComponent(groupId)}/receivers/${encodeURIComponent(receiverKey)}/config`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      }
-    );
-    if (!res.ok) {
-      setMsg(await res.text());
-      return;
-    }
-    setMsg("Saved / applied.");
-  }
-
   return (
-    <form onSubmit={submit} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+    <form
+      onSubmit={(e) => e.preventDefault()}
+      style={{ display: "flex", flexDirection: "column", gap: 12 }}
+    >
       {readOnly && (
         <p className="muted" style={{ margin: 0, fontSize: 13 }}>
           This receiver session is read-only — fields are shown for reference only.
@@ -126,7 +76,7 @@ export function ConfigForm({
               title={title}
               disabled={tabConflict}
               onClick={() => setTab(t.id)}
-              className={`nav-tab${tab === t.id ? " active" : ""}`}
+              className={`nav-tab${tab === t.id ? " active" : ""}${tabConflict ? " nav-tab-disabled" : ""}`}
             >
               {t.label}
             </button>
@@ -364,10 +314,9 @@ export function ConfigForm({
         </fieldset>
       )}
 
-      <button type="submit" disabled={readOnly}>
-        Validate / apply
+      <button type="button" disabled title="Configuration apply is not implemented yet">
+        Not implemented
       </button>
-      {msg && <p className="muted">{msg}</p>}
     </form>
   );
 }
