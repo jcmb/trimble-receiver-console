@@ -4,6 +4,7 @@ import type { GroupInfo, LBandStatus, RadioInfo, ReceiverSnapshot } from "./type
 import { formatLatLonDMS, toDMS, positionHoverText } from "./geoFormat";
 import { ReceiverMap } from "./ReceiverMap";
 import { SkyPlot } from "./SkyPlot";
+import { SVTrackingCard } from "./SVTrackingCard";
 import { ConfigForm } from "./ConfigForm";
 import { ThemeToggle } from "./ThemeToggle";
 
@@ -322,13 +323,25 @@ export default function ConsoleHome() {
               {!selected && <p className="muted">Select a receiver from the list or map.</p>}
               {selected && <StatusPanel r={selected} />}
             </div>
-            <div className="panel">
-              <h2 style={{ marginTop: 0 }}>Sky plot</h2>
-              {selected && selected.satellites?.length ? (
-                <SkyPlot svs={selected.satellites} />
-              ) : (
-                <p className="muted">No SV geometry (enable GSOF All SV Detail, record 34).</p>
-              )}
+            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              <div className="panel">
+                <h2 style={{ marginTop: 0 }}>SV tracking</h2>
+                {!selected && <p className="muted">Select a receiver from the list or map.</p>}
+                {selected && selected.satellites?.length ? (
+                  <SVTrackingCard svs={selected.satellites} />
+                ) : selected ? (
+                  <p className="muted">No SV geometry (enable GSOF All SV Detail, record 34).</p>
+                ) : null}
+              </div>
+              <div className="panel">
+                <h2 style={{ marginTop: 0 }}>Sky plot</h2>
+                {!selected && <p className="muted">Select a receiver from the list or map.</p>}
+                {selected && selected.satellites?.length ? (
+                  <SkyPlot svs={selected.satellites} />
+                ) : selected ? (
+                  <p className="muted">No SV geometry (enable GSOF All SV Detail, record 34).</p>
+                ) : null}
+              </div>
             </div>
             <div className="panel" style={{ gridColumn: "1 / -1" }}>
               <h2 style={{ marginTop: 0 }}>Configuration</h2>

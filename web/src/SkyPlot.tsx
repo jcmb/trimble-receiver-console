@@ -1,18 +1,17 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { SVInfo } from "./types";
 import { useTheme } from "./themeContext";
-
-const SYS = ["GPS", "SBAS", "GLO", "Gal", "QZSS", "BDS"] as const;
+import {
+  SV_SYSTEM_NAMES,
+  sysIndex,
+  svTooltipText,
+  trackedSatellitesForSky,
+} from "./svSkyShared";
 
 const SAT_COLORS_DARK = ["#8ab4f8", "#fbbc04", "#81c995", "#c58af9", "#ff8a65", "#4dd0e1"];
 const SAT_COLORS_LIGHT = ["#1967d2", "#e37400", "#137333", "#8430ce", "#c5221f", "#007b83"];
 
 type Hit = { x: number; y: number; sv: SVInfo };
-
-function sysIndex(sv: SVInfo): number {
-  const n = SYS.length;
-  return ((sv.system % n) + n) % n;
-}
 
 function ptOnSkyplot(
   cx: number,
@@ -31,20 +30,6 @@ function ptOnSkyplot(
   };
 }
 
-function tooltipText(sv: SVInfo): string {
-  const sys = SYS[sysIndex(sv)] ?? "?";
-  const lines = [
-    `${sys} PRN ${sv.prn}`,
-    `Elevation ${sv.elevation_deg.toFixed(0)}° · Azimuth ${sv.azimuth_deg.toFixed(0)}°`,
-    `C/N₀ ${sv.cn0_db_hz.toFixed(1)} dB-Hz`,
-    sv.used_in_position ? "Used in position" : "Not used in position",
-  ];
-  if (sv.used_in_rtk) {
-    lines.push("Used in RTK");
-  }
-  return lines.join("\n");
-}
-
 export function SkyPlot({ svs }: { svs: SVInfo[] }) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -53,7 +38,15 @@ export function SkyPlot({ svs }: { svs: SVInfo[] }) {
   const isLight = resolvedTheme === "light";
   const colors = isLight ? SAT_COLORS_LIGHT : SAT_COLORS_DARK;
 
-  const [visibleSys, setVisibleSys] = useState<boolean[]>(() => Array(SYS.length).fill(true));
+  const systemsWithTracked = useMemo(() => {
+    const set = new Set<number>();
+    for (const sv of trackedSatellitesForSky(svs)) {
+      set.add(sysIndex(sv));
+    }
+    return set;
+  }, [svs]);
+
+  const [visibleSys, setVisibleSys] = useState<boolean[]>(() => Array(SV_SYSTEM_NAMES.length).fill(true));
   const [tip, setTip] = useState<{ px: number; py: number; text: string } | null>(null);
 
   const plotInput = useMemo(() => {
@@ -204,40 +197,49 @@ export function SkyPlot({ svs }: { svs: SVInfo[] }) {
       if (y + th > window.innerHeight - 8) {
         y = ev.clientY - th - 14;
       }
-      setTip({ px: x, py: y, text: tooltipText(hit.sv) });
+      setTip({ px: x, py: y, text: svTooltipText(hit.sv) });
     } else {
       setTip(null);
     }
   }
 
+  const showLegend = systemsWithTracked.size > 0;
+
   return (
     <div ref={wrapRef} style={{ width: "100%" }}>
       <p style={{ fontSize: 12, color: "var(--app-muted)", margin: "0 0 8px", lineHeight: 1.4 }}>
         North up, horizon at outer ring — hover an SV for details. Uncheck a constellation to hide its
-        satellites.
+        satellites (only constellations with tracked SVs are listed).
       </p>
-      <div className="row" style={{ flexWrap: "wrap", gap: "6px 14px", marginBottom: 10 }}>
-        {SYS.map((name, i) => (
-          <label key={name} className="row" style={{ gap: 6, fontSize: 12, cursor: "pointer" }}>
-            <input
-              type="checkbox"
-              checked={visibleSys[i] ?? true}
-              onChange={(e) => {
-                const on = e.target.checked;
-                setVisibleSys((prev) => {
-                  const next = [...prev];
-                  next[i] = on;
-                  return next;
-                });
-              }}
-            />
-            <span style={{ color: colors[i], fontSize: 14, lineHeight: 1 }} aria-hidden>
-              ■
-            </span>
-            <span>{name}</span>
-          </label>
-        ))}
-      </div>
+      {showLegend && (
+        <div className="row" style={{ flexWrap: "wrap", gap: "6px 14px", marginBottom: 10 }}>
+          {SV_SYSTEM_NAMES.map((name, i) => {
+            if (!systemsWithTracked.has(i)) {
+              return null;
+            }
+            return (
+              <label key={name} className="row" style={{ gap: 6, fontSize: 12, cursor: "pointer" }}>
+                <input
+                  type="checkbox"
+                  checked={visibleSys[i] ?? true}
+                  onChange={(e) => {
+                    const on = e.target.checked;
+                    setVisibleSys((prev) => {
+                      const next = [...prev];
+                      next[i] = on;
+                      return next;
+                    });
+                  }}
+                />
+                <span style={{ color: colors[i], fontSize: 14, lineHeight: 1 }} aria-hidden>
+                  ■
+                </span>
+                <span>{name}</span>
+              </label>
+            );
+          })}
+        </div>
+      )}
       <div style={{ position: "relative", display: "inline-block", maxWidth: "100%" }}>
         <canvas
           ref={canvasRef}
