@@ -1,6 +1,11 @@
 # Copy to config.yaml and adjust.
 
-http_listen: "127.0.0.1:8080"
+# HTTP UI: bind address and port (defaults if omitted: 127.0.0.1 and 8081).
+http_bind: "127.0.0.1"
+http_port: 8081
+
+# Optional legacy override — full listen address; when set, overrides http_bind and http_port.
+# http_listen: "0.0.0.0:8081"
 
 # When "groups" is non-empty, each group has its own TCP port.
 # When "groups" is omitted, a single default group uses tcp_listen (backward compatible).

@@ -1,12 +1,52 @@
+# Sample systemd unit for Linux (Debian/Ubuntu-style systems).
+#
+# www-data is present on typical Debian/Ubuntu installs (often created by apache2 or nginx).
+# On Fedora/RHEL, www-data usually does not exist — use a dedicated account instead, e.g.:
+#   sudo useradd -r -d /var/lib/trimble-console -s /usr/sbin/nologin trimble-console
+# and set User= / Group= to that account.
+#
+# Install (adjust paths and architecture binary name):
+#   sudo install -m755 trimble-console-linux-amd64 /usr/local/bin/trimble-console
+#   sudo mkdir -p /etc/trimble-console
+#   sudo cp /path/to/config.yaml /etc/trimble-console/config.yaml
+#   sudo chown root:www-data /etc/trimble-console/config.yaml
+#   sudo chmod 640 /etc/trimble-console/config.yaml
+#   sudo cp deploy/trimble-console.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now trimble-console
+#
+# Optional overrides (TRIMBLE_CONFIG, extra env): create /etc/default/trimble-console — see systemd.exec(5).
+
 [Unit]
 Description=Trimble receiver console (GSOF / DCOL TCP ingress + web UI)
-After=network.target
+Documentation=https://github.com/gkirk/trimble-receiver-console
+After=network-online.target
+Wants=network-online.target
 
 [Service]
 Type=simple
+User=www-data
+Group=www-data
+
+# Config path (override in /etc/default/trimble-console if needed).
+Environment=TRIMBLE_CONFIG=/etc/trimble-console/config.yaml
 EnvironmentFile=-/etc/default/trimble-console
+
+# Persistent working/state directory (created by systemd with correct ownership).
+StateDirectory=trimble-console
+WorkingDirectory=/var/lib/trimble-console
+
 ExecStart=/usr/local/bin/trimble-console
+
 Restart=on-failure
+RestartSec=5
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=trimble-console
+
+NoNewPrivileges=yes
+PrivateTmp=yes
 
 [Install]
 WantedBy=multi-user.target

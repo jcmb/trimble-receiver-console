@@ -33,7 +33,12 @@ func main() {
 		}
 		cfg = appcfg.Default()
 		cfg.NormalizeGroups()
-		_ = cfg.ValidateGroups()
+		if err := cfg.ValidateGroups(); err != nil {
+			log.Fatalf("config: %v", err)
+		}
+		if err := cfg.ValidateHTTPListen(); err != nil {
+			log.Fatalf("config: %v", err)
+		}
 	}
 
 	hub := session.NewHub(cfg)
@@ -59,11 +64,12 @@ func main() {
 	}
 
 	h := api.LogMiddleware(srv.Handler())
-	log.Printf("HTTP UI on http://%s", cfg.HTTPListen)
+	httpAddr := cfg.ListenHTTP()
+	log.Printf("HTTP UI on http://%s", httpAddr)
 	for _, g := range hub.OrderedGroups() {
 		log.Printf("Group %q (%s) TCP %s", g.Name, g.ID, g.TCPListen)
 	}
-	if err := http.ListenAndServe(cfg.HTTPListen, h); err != nil {
+	if err := http.ListenAndServe(httpAddr, h); err != nil {
 		log.Fatal(err)
 	}
 }
