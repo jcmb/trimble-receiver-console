@@ -2,7 +2,10 @@ package config
 
 import (
 	"fmt"
+	"net"
 	"os"
+	"strconv"
+	"strings"
 
 	"gopkg.in/yaml.v3"
 )
@@ -24,7 +27,12 @@ type GroupConfig struct {
 
 // Config is loaded from YAML.
 type Config struct {
+	// HTTPListen is an optional legacy full listen address (host:port). When set, it overrides HTTPBind and HTTPPort.
 	HTTPListen string `yaml:"http_listen"`
+	// HTTPBind is the address the HTTP UI binds to (ignored when HTTPListen is set). Default 127.0.0.1.
+	HTTPBind string `yaml:"http_bind"`
+	// HTTPPort is the TCP port for the HTTP UI (ignored when HTTPListen is set). Default 8081.
+	HTTPPort int `yaml:"http_port"`
 	// TCPListen is used only when groups is empty (backward compatibility).
 	TCPListen string `yaml:"tcp_listen"`
 	Groups    []GroupConfig `yaml:"groups"`
@@ -37,7 +45,8 @@ type Config struct {
 
 func Default() *Config {
 	return &Config{
-		HTTPListen:                    "127.0.0.1:8080",
+		HTTPBind:                      "127.0.0.1",
+		HTTPPort:                      8081,
 		TCPListen:                     "0.0.0.0:9000",
 		Groups:                        nil,
 		DefaultMode:                   ModeReadWrite,
@@ -63,7 +72,35 @@ func Load(path string) (*Config, error) {
 	if err := c.ValidateGroups(); err != nil {
 		return nil, err
 	}
+	if err := c.ValidateHTTPListen(); err != nil {
+		return nil, err
+	}
 	return c, nil
+}
+
+// ListenHTTP returns the listen address for the HTTP UI (bind + port, or legacy http_listen).
+func (c *Config) ListenHTTP() string {
+	if strings.TrimSpace(c.HTTPListen) != "" {
+		return strings.TrimSpace(c.HTTPListen)
+	}
+	bind := c.HTTPBind
+	if bind == "" {
+		bind = "127.0.0.1"
+	}
+	port := c.HTTPPort
+	if port == 0 {
+		port = 8081
+	}
+	return net.JoinHostPort(bind, strconv.Itoa(port))
+}
+
+// ValidateHTTPListen checks that [Config.ListenHTTP] resolves as a TCP address.
+func (c *Config) ValidateHTTPListen() error {
+	addr := c.ListenHTTP()
+	if _, err := net.ResolveTCPAddr("tcp", addr); err != nil {
+		return fmt.Errorf("invalid HTTP listen address %q: %w", addr, err)
+	}
+	return nil
 }
 
 // NormalizeGroups builds a single default group from tcp_listen when groups is unset.

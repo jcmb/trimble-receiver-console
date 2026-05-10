@@ -12,7 +12,7 @@ Go service that accepts **inbound TCP** connections from Trimble receivers, deco
 
 ```bash
 cp config/config.example.yaml config.yaml
-# edit http_listen, groups (id, name, tcp_listen, people), default_mode, map_tile_url, cors_origins
+# edit http_bind / http_port (or legacy http_listen), groups (id, name, tcp_listen, people), default_mode, map_tile_url, cors_origins
 export TRIMBLE_CONFIG=$PWD/config.yaml
 ```
 
@@ -46,7 +46,7 @@ The UI is embedded from `cmd/server/dist` (`//go:embed`). Client routes such as 
 ./bin/trimble-console
 ```
 
-- HTTP UI: `http_listen` (default `127.0.0.1:8080`)
+- HTTP UI: `http_bind` + `http_port` (defaults `127.0.0.1`, `8081`), or legacy `http_listen` for one combined address
 - Receiver TCP: one port **per group** (see config)
 
 In the UI, pick a **group** first, then manage receivers for that group. **Help** (`/help`) summarizes required/optional GSOF records.
