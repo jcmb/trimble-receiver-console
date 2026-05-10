@@ -46,6 +46,19 @@ function dispTrack(s: string | undefined): string {
   return t ? t : "—";
 }
 
+/** Valid positive C/N₀ sorts before missing/zero; both missing compares equal. */
+function cmpCnDbHz(
+  a: number | null | undefined,
+  b: number | null | undefined,
+): number {
+  const okA = a != null && Number.isFinite(a) && a > 0;
+  const okB = b != null && Number.isFinite(b) && b > 0;
+  if (!okA && !okB) return 0;
+  if (!okA) return 1;
+  if (!okB) return -1;
+  return a - b;
+}
+
 function compareSv(a: SVInfo, b: SVInfo, col: SortCol, asc: boolean): number {
   let v = 0;
   switch (col) {
@@ -68,19 +81,19 @@ function compareSv(a: SVInfo, b: SVInfo, col: SortCol, asc: boolean): number {
       v = Number(a.used_in_rtk) - Number(b.used_in_rtk);
       break;
     case "l1cn":
-      v = fmtL1Cn(a).localeCompare(fmtL1Cn(b));
+      v = cmpCnDbHz(a.cn0_db_hz, b.cn0_db_hz);
       break;
     case "l1tr":
       v = dispTrack(a.track_l1).localeCompare(dispTrack(b.track_l1));
       break;
     case "l2cn":
-      v = fmtL2Cn(a).localeCompare(fmtL2Cn(b));
+      v = cmpCnDbHz(a.cn0_l2_db_hz, b.cn0_l2_db_hz);
       break;
     case "l2tr":
       v = dispTrack(a.track_l2).localeCompare(dispTrack(b.track_l2));
       break;
     case "l5cn":
-      v = fmtL5Cn(a).localeCompare(fmtL5Cn(b));
+      v = cmpCnDbHz(a.cn0_l56_db_hz, b.cn0_l56_db_hz);
       break;
     case "l5tr":
       v = dispTrack(a.track_l5).localeCompare(dispTrack(b.track_l5));
@@ -198,14 +211,27 @@ export function SVTrackingCard({ svs }: { svs: SVInfo[] }) {
     whiteSpace: "nowrap",
   };
 
-  const thBand: CSSProperties = {
+  const groupTh: CSSProperties = {
     ...th,
     textAlign: "center",
     padding: "6px 4px",
-    verticalAlign: "bottom",
+    verticalAlign: "middle",
+    fontWeight: 600,
+    color: "var(--app-text)",
   };
-  const thBandFirst: CSSProperties = {
-    ...thBand,
+  const groupThFirst: CSSProperties = {
+    ...groupTh,
+    borderLeft: "1px solid var(--table-border)",
+  };
+  const thSub: CSSProperties = {
+    ...th,
+    textAlign: "center",
+    padding: "4px 6px",
+    verticalAlign: "bottom",
+    borderBottom: "1px solid var(--table-border)",
+  };
+  const thSubFirst: CSSProperties = {
+    ...thSub,
     borderLeft: "1px solid var(--table-border)",
   };
 
@@ -244,67 +270,92 @@ export function SVTrackingCard({ svs }: { svs: SVInfo[] }) {
         ))}
       </div>
       <div style={{ overflowX: "auto" }}>
-        <table style={{ width: "100%", borderCollapse: "collapse", margin: 0 }}>
+        <table style={{ width: "100%", borderCollapse: "collapse", margin: 0, tableLayout: "fixed" }}>
+          <colgroup>
+            <col />
+            <col style={{ width: "3.25rem" }} />
+            <col style={{ width: "3.5rem" }} />
+            <col style={{ width: "3.5rem" }} />
+            <col style={{ width: "6.5rem" }} />
+            <col style={{ width: "3.5rem" }} />
+            <col style={{ minWidth: "4.25rem" }} />
+            <col style={{ minWidth: "5.75rem" }} />
+            <col style={{ minWidth: "4.25rem" }} />
+            <col style={{ minWidth: "5.75rem" }} />
+            <col style={{ minWidth: "4.25rem" }} />
+            <col style={{ minWidth: "5.75rem" }} />
+          </colgroup>
           <thead>
             <tr>
-              <th style={th}>
+              <th rowSpan={2} style={{ ...th, verticalAlign: "bottom" }}>
                 <button type="button" style={{ ...btnReset, textAlign: "left" }} onClick={() => onSort("system")}>
                   System{sortMark("system")}
                 </button>
               </th>
-              <th style={{ ...th, textAlign: "right", paddingLeft: 8 }}>
+              <th rowSpan={2} style={{ ...th, textAlign: "right", paddingLeft: 8, verticalAlign: "bottom" }}>
                 <button type="button" style={{ ...btnReset, textAlign: "right", paddingLeft: 8 }} onClick={() => onSort("prn")}>
                   PRN{sortMark("prn")}
                 </button>
               </th>
-              <th style={{ ...th, textAlign: "right", paddingLeft: 8 }}>
+              <th rowSpan={2} style={{ ...th, textAlign: "right", paddingLeft: 8, verticalAlign: "bottom" }}>
                 <button type="button" style={{ ...btnReset, textAlign: "right", paddingLeft: 8 }} onClick={() => onSort("elev")}>
                   Elev°{sortMark("elev")}
                 </button>
               </th>
-              <th style={{ ...th, textAlign: "right", paddingLeft: 8 }}>
+              <th rowSpan={2} style={{ ...th, textAlign: "right", paddingLeft: 8, verticalAlign: "bottom" }}>
                 <button type="button" style={{ ...btnReset, textAlign: "right", paddingLeft: 8 }} onClick={() => onSort("azim")}>
                   Azim°{sortMark("azim")}
                 </button>
               </th>
-              <th style={{ ...th, paddingLeft: 10 }}>
+              <th rowSpan={2} style={{ ...th, paddingLeft: 10, verticalAlign: "bottom" }}>
                 <button type="button" style={{ ...btnReset, textAlign: "left", paddingLeft: 10 }} onClick={() => onSort("position")}>
                   Position{sortMark("position")}
                 </button>
               </th>
-              <th style={{ ...th, paddingLeft: 10 }}>
+              <th rowSpan={2} style={{ ...th, paddingLeft: 10, verticalAlign: "bottom" }}>
                 <button type="button" style={{ ...btnReset, textAlign: "left", paddingLeft: 10 }} onClick={() => onSort("rtk")}>
                   RTK{sortMark("rtk")}
                 </button>
               </th>
-              <th style={thBandFirst}>
+              <th colSpan={2} style={groupThFirst}>
+                L1
+              </th>
+              <th colSpan={2} style={groupTh}>
+                L2
+              </th>
+              <th colSpan={2} style={groupTh}>
+                L5
+              </th>
+            </tr>
+            <tr>
+              <th style={thSubFirst}>
                 <button type="button" style={{ ...btnReset, textAlign: "center" }} onClick={() => onSort("l1cn")}>
-                  L1 C/N₀{sortMark("l1cn")}
+                  C/N₀{sortMark("l1cn")}
                 </button>
               </th>
-              <th style={thBand}>
+              <th style={thSub}>
                 <button type="button" style={{ ...btnReset, textAlign: "center" }} onClick={() => onSort("l1tr")}>
-                  L1 Tracking{sortMark("l1tr")}
+                  Tracking{sortMark("l1tr")}
                 </button>
               </th>
-              <th style={thBand}>
+              <th style={thSub}>
                 <button type="button" style={{ ...btnReset, textAlign: "center" }} onClick={() => onSort("l2cn")}>
-                  L2 C/N₀{sortMark("l2cn")}
+                  C/N₀{sortMark("l2cn")}
                 </button>
               </th>
-              <th style={thBand}>
+              <th style={thSub}>
                 <button type="button" style={{ ...btnReset, textAlign: "center" }} onClick={() => onSort("l2tr")}>
-                  L2 Tracking{sortMark("l2tr")}
+                  Tracking{sortMark("l2tr")}
                 </button>
               </th>
-              <th style={thBand}>
+              <th style={thSub}>
                 <button type="button" style={{ ...btnReset, textAlign: "center" }} onClick={() => onSort("l5cn")}>
-                  L5 C/N₀{sortMark("l5cn")}
+                  C/N₀{sortMark("l5cn")}
                 </button>
               </th>
-              <th style={thBand}>
+              <th style={thSub}>
                 <button type="button" style={{ ...btnReset, textAlign: "center" }} onClick={() => onSort("l5tr")}>
-                  L5 Tracking{sortMark("l5tr")}
+                  Tracking{sortMark("l5tr")}
                 </button>
               </th>
             </tr>

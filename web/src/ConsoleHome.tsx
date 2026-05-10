@@ -1,6 +1,13 @@
 import { Fragment, useCallback, useEffect, useMemo, useState, type CSSProperties } from "react";
 import { Link } from "react-router-dom";
-import type { GroupInfo, LBandStatus, RadioInfo, ReceiverSnapshot } from "./types";
+import type {
+  DCOLRetSerial,
+  GroupInfo,
+  LBandStatus,
+  RadioInfo,
+  ReceiverSnapshot,
+  VectorSnapshot,
+} from "./types";
 import { formatLatLonDMS, toDMS, positionHoverText } from "./geoFormat";
 import { ReceiverMap } from "./ReceiverMap";
 import { SkyPlot } from "./SkyPlot";
@@ -669,6 +676,105 @@ function llhCloseDeg(
   );
 }
 
+function channelsRetSerialSummary(rs: DCOLRetSerial): string {
+  const parts: string[] = [];
+  if (rs.usable_channels != null) parts.push(`Usable ${rs.usable_channels}`);
+  if (rs.physical_channels != null) parts.push(`Physical ${rs.physical_channels}`);
+  if (rs.simultaneous_track != null) parts.push(`Simultaneous ${rs.simultaneous_track}`);
+  return parts.length > 0 ? parts.join(" · ") : "—";
+}
+
+function VectorCard({ vector }: { vector?: VectorSnapshot }) {
+  if (!vector?.tangent_plane && !vector?.diagnostics) return null;
+  const tp = vector.tangent_plane;
+  const d = vector.diagnostics;
+  const tdL: CSSProperties = {
+    padding: "8px 12px 8px 0",
+    verticalAlign: "top",
+    color: "var(--app-muted)",
+    fontSize: 12,
+    width: "4.5rem",
+  };
+  const tdV: CSSProperties = {
+    padding: "8px 12px 8px 0",
+    fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
+    fontSize: 13,
+    color: "var(--app-text)",
+  };
+  return (
+    <div className="status-card">
+      <h3 className="status-card-title mixed-case">Vector</h3>
+      {tp && (
+        <>
+          <p className="muted" style={{ fontSize: 12, margin: "0 0 8px", lineHeight: 1.35 }}>
+            Tangent plane ENU (GSOF type 7) — base→rover on tangent plane at base (meters).
+          </p>
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <tbody>
+              <tr>
+                <td style={tdL}>Δ East</td>
+                <td style={tdV}>{tp.delta_east_m.toFixed(4)}</td>
+              </tr>
+              <tr>
+                <td style={tdL}>Δ North</td>
+                <td style={tdV}>{tp.delta_north_m.toFixed(4)}</td>
+              </tr>
+              <tr>
+                <td style={tdL}>Δ Up</td>
+                <td style={tdV}>{tp.delta_up_m.toFixed(4)}</td>
+              </tr>
+            </tbody>
+          </table>
+        </>
+      )}
+      {d && (
+        <>
+          <p
+            className="muted"
+            style={{ fontSize: 12, margin: tp ? "12px 0 8px" : "0 0 8px", lineHeight: 1.35 }}
+          >
+            Receiver diagnostics (GSOF type 28).
+          </p>
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <tbody>
+              <tr>
+                <td style={tdL}>Ref. station info</td>
+                <td style={tdV}>{d.reference_station_info_received ? "Received" : "—"}</td>
+              </tr>
+              <tr>
+                <td style={tdL}>Link integrity</td>
+                <td style={tdV}>
+                  {d.link_integrity_pct != null ? `${d.link_integrity_pct.toFixed(1)}%` : "—"}
+                </td>
+              </tr>
+              <tr>
+                <td style={tdL}>Common L1 / L2 SVs</td>
+                <td style={tdV}>
+                  {(d.common_l1_svs ?? "—") + " / " + (d.common_l2_svs ?? "—")}
+                </td>
+              </tr>
+              <tr>
+                <td style={tdL}>Datalink latency</td>
+                <td style={tdV}>
+                  {d.datalink_latency_s != null ? `${d.datalink_latency_s.toFixed(1)} s` : "—"}
+                </td>
+              </tr>
+              <tr>
+                <td style={tdL}>Diff SVs in use</td>
+                <td style={tdV}>{d.diff_svs_in_use ?? "—"}</td>
+              </tr>
+              <tr>
+                <td style={tdL}>RTK position age</td>
+                <td style={tdV}>{d.rtk_position_age != null ? String(d.rtk_position_age) : "—"}</td>
+              </tr>
+            </tbody>
+          </table>
+        </>
+      )}
+    </div>
+  );
+}
+
 function BaseStationCard({ r }: { r: ReceiverSnapshot }) {
   const rb = r.received_base;
   const bq = r.base_position_quality;
@@ -764,26 +870,11 @@ function BaseStationCard({ r }: { r: ReceiverSnapshot }) {
 }
 
 function RadioInfoCard({ ri }: { ri: RadioInfo }) {
-  const dlStyle: CSSProperties = {
-    display: "grid",
-    gridTemplateColumns: "minmax(7rem, auto) 1fr",
-    gap: "6px 12px",
-    margin: 0,
-    fontSize: 13,
-  };
   return (
     <div className="status-card">
       <h3 className="status-card-title mixed-case">Radio information</h3>
-      <dl style={dlStyle}>
-        <dt className="muted" style={{ margin: 0 }}>
-          GPS time
-        </dt>
-        <dd style={{ margin: 0, fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace" }}>
-          week {ri.gps_week ?? "—"} · {ri.gps_ms ?? "—"} ms
-        </dd>
-      </dl>
       {ri.radios && ri.radios.length > 0 ? (
-        <table style={{ width: "100%", borderCollapse: "collapse", marginTop: 12, fontSize: 13 }}>
+        <table style={{ width: "100%", borderCollapse: "collapse", marginTop: 0, fontSize: 13 }}>
           <thead>
             <tr>
               <th style={{ textAlign: "left", padding: "4px 8px 4px 0", color: "var(--app-muted)", fontWeight: 500, fontSize: 11 }}>
@@ -861,6 +952,7 @@ function StatusPanel({ r }: { r: ReceiverSnapshot }) {
   const lat = r.has_llh ? (r.lat_rad * 180) / Math.PI : null;
   const lon = r.has_llh ? (r.lon_rad * 180) / Math.PI : null;
   const hoverLLH = r.has_llh ? positionHoverText(r.lat_rad, r.lon_rad, r.height_m) : undefined;
+  const svUsedTotal = r.satellites?.filter((s) => s.used_in_position).length ?? 0;
 
   const th: CSSProperties = {
     textAlign: "left",
@@ -946,62 +1038,54 @@ function StatusPanel({ r }: { r: ReceiverSnapshot }) {
         )}
         {!r.dcol_ret_serial && !r.online && <p className="muted" style={{ margin: 0, fontSize: 13 }}>—</p>}
         {r.dcol_ret_serial && (
-          <>
-            <p className="muted" style={{ fontSize: 11, margin: "0 0 8px" }}>
-              Received {new Date(r.dcol_ret_serial.received_at).toLocaleString()}
-            </p>
-            <table style={{ width: "100%", borderCollapse: "collapse" }}>
-              <tbody>
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <tbody>
+              <tr>
+                <td style={tdL}>Receiver type</td>
+                <td style={tdV}>{r.dcol_ret_serial.receiver_type?.trim() || "—"}</td>
+              </tr>
+              <tr>
+                <td style={tdL}>Serial number</td>
+                <td style={tdV}>{r.dcol_ret_serial.long_serial?.trim() || "—"}</td>
+              </tr>
+              {!r.dcol_ret_serial.long_serial?.trim() && (
                 <tr>
-                  <td style={tdL}>Receiver type</td>
-                  <td style={tdV}>{r.dcol_ret_serial.receiver_type?.trim() || "—"}</td>
+                  <td style={tdL}>Serial (8-char)</td>
+                  <td style={tdV}>{r.dcol_ret_serial.receiver_serial_short?.trim() || "—"}</td>
                 </tr>
-                <tr>
-                  <td style={tdL}>Serial number</td>
-                  <td style={tdV}>{r.dcol_ret_serial.long_serial?.trim() || "—"}</td>
-                </tr>
-                {!r.dcol_ret_serial.long_serial?.trim() && (
-                  <tr>
-                    <td style={tdL}>Serial (8-char)</td>
-                    <td style={tdV}>{r.dcol_ret_serial.receiver_serial_short?.trim() || "—"}</td>
-                  </tr>
-                )}
-                <tr>
-                  <td style={tdL}>Firmware</td>
-                  <td style={tdV}>{formatNavFirmwareHundredths(r.dcol_ret_serial.nav_processor_version)}</td>
-                </tr>
-                <tr>
-                  <td style={tdL}>Antenna</td>
-                  <td style={tdV}>
-                    {r.dcol_ret_serial.antenna_serial?.trim() || "—"} ·{" "}
-                    {trimbleRetSerialAntennaLabel(r.dcol_ret_serial.antenna_type)}
-                  </td>
-                </tr>
-                <tr>
-                  <td style={tdL}>Base long ant serial</td>
-                  <td style={tdV}>{r.dcol_ret_serial.base_long_ant_serial?.trim() || "—"}</td>
-                </tr>
-                <tr>
-                  <td style={tdL}>Base NGS ant descriptor</td>
-                  <td style={tdV}>{r.dcol_ret_serial.base_ngs_ant_descriptor?.trim() || "—"}</td>
-                </tr>
-                <tr>
-                  <td style={tdL}>Channels</td>
-                  <td style={tdV}>
-                    Total {r.dcol_ret_serial.channels_total ?? "—"} · L1-only {r.dcol_ret_serial.channels_l1_only ?? "—"} ·
-                    Usable {r.dcol_ret_serial.usable_channels ?? "—"} · Physical {r.dcol_ret_serial.physical_channels ?? "—"} ·
-                    Simult. {r.dcol_ret_serial.simultaneous_track ?? "—"}
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </>
+              )}
+              <tr>
+                <td style={tdL}>Firmware</td>
+                <td style={tdV}>{formatNavFirmwareHundredths(r.dcol_ret_serial.nav_processor_version)}</td>
+              </tr>
+              <tr>
+                <td style={tdL}>Antenna type</td>
+                <td style={tdV}>{trimbleRetSerialAntennaLabel(r.dcol_ret_serial.antenna_type)}</td>
+              </tr>
+              <tr>
+                <td style={tdL}>Antenna serial</td>
+                <td style={tdV}>{r.dcol_ret_serial.antenna_serial?.trim() || "—"}</td>
+              </tr>
+              <tr>
+                <td style={tdL}>Base long ant serial</td>
+                <td style={tdV}>{r.dcol_ret_serial.base_long_ant_serial?.trim() || "—"}</td>
+              </tr>
+              <tr>
+                <td style={tdL}>Base NGS ant descriptor</td>
+                <td style={tdV}>{r.dcol_ret_serial.base_ngs_ant_descriptor?.trim() || "—"}</td>
+              </tr>
+              <tr>
+                <td style={tdL}>Channels</td>
+                <td style={tdV}>{channelsRetSerialSummary(r.dcol_ret_serial)}</td>
+              </tr>
+            </tbody>
+          </table>
         )}
       </div>
 
       {/* Position — first */}
       <div className="status-card">
-        <h3 className="status-card-title">Position</h3>
+        <h3 className="status-card-title mixed-case">Position</h3>
         <div
           style={{
             marginBottom: 14,
@@ -1069,23 +1153,31 @@ function StatusPanel({ r }: { r: ReceiverSnapshot }) {
             marginTop: 12,
             paddingTop: 12,
             borderTop: "1px solid var(--table-border)",
-            fontSize: 13,
           }}
         >
-          <span className="muted" style={{ fontSize: 12 }}>Fix type </span>
-          {r.has_position_type ? `${r.position_type_label} (${r.position_type})` : "—"}
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+            <tbody>
+              <tr>
+                <td style={tdL}>Fix type</td>
+                <td style={tdV}>
+                  {r.has_position_type ? `${r.position_type_label} (${r.position_type})` : "—"}
+                </td>
+              </tr>
+              <tr>
+                <td style={tdL}>RMS</td>
+                <td style={tdV}>{r.has_sigma ? `${r.position_rms_m.toFixed(3)} m` : "—"}</td>
+              </tr>
+              <tr>
+                <td style={tdL}>SVs used</td>
+                <td style={tdV}>{svUsedTotal}</td>
+              </tr>
+            </tbody>
+          </table>
         </div>
 
-        {(r.has_sigma || r.has_dop) && (
+        {r.has_dop && (
           <div style={{ marginTop: 10, fontSize: 13 }}>
-            {r.has_sigma && (
-              <div style={{ marginBottom: r.has_dop ? 10 : 0 }}>
-                <span className="muted">RMS </span>
-                <strong>{r.position_rms_m.toFixed(3)}</strong> m
-              </div>
-            )}
-            {r.has_dop && (
-              <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse" }}>
                 <thead>
                   <tr>
                     <th style={metricTh}>PDOP</th>
@@ -1103,7 +1195,6 @@ function StatusPanel({ r }: { r: ReceiverSnapshot }) {
                   </tr>
                 </tbody>
               </table>
-            )}
           </div>
         )}
 
@@ -1147,13 +1238,15 @@ function StatusPanel({ r }: { r: ReceiverSnapshot }) {
         )}
       </div>
 
+      <VectorCard vector={r.vector} />
+
       <div className="status-card">
         <h3 className="status-card-title mixed-case">SV Information</h3>
         <ConstellationTable r={r} />
       </div>
 
       <div className="status-card">
-        <h3 className="status-card-title">Summary</h3>
+        <h3 className="status-card-title mixed-case">Summary</h3>
         <dl
           style={{
             display: "grid",
@@ -1207,12 +1300,12 @@ function StatusPanel({ r }: { r: ReceiverSnapshot }) {
       </div>
 
       <div className="status-card">
-        <h3 className="status-card-title">MSS</h3>
+        <h3 className="status-card-title mixed-case">MSS</h3>
         <LBandStatusDetails lb={r.l_band_status} />
       </div>
 
       <div className="status-card">
-        <h3 className="status-card-title">xFill</h3>
+        <h3 className="status-card-title mixed-case">xFill</h3>
         <div style={{ fontSize: 14 }}>
           {!r.xfill_present ? (
             <span className="muted">— no GSOF record 38 network flags in this stream</span>
@@ -1357,6 +1450,12 @@ function LBandStatusDetails({ lb }: { lb: LBandStatus | undefined }) {
   );
 }
 
+/** SBAS / MSS are not position SVs in typical setups — hide misleading zero counts. */
+function constellationCountDisplay(name: string, n: number): string {
+  if ((name === "SBAS" || name === "RTX (MSS)") && n === 0) return "—";
+  return String(n);
+}
+
 function ConstellationTable({ r }: { r: ReceiverSnapshot }) {
   const used = r.sv_used_by_system ?? {};
   const tracked = r.sv_tracked_by_system ?? {};
@@ -1377,8 +1476,8 @@ function ConstellationTable({ r }: { r: ReceiverSnapshot }) {
         {names.map((name) => (
           <tr key={name}>
             <td style={{ padding: "2px 8px 2px 0" }}>{name}</td>
-            <td style={{ textAlign: "right", padding: 4 }}>{used[name] ?? 0}</td>
-            <td style={{ textAlign: "right", padding: 4 }}>{tracked[name] ?? 0}</td>
+            <td style={{ textAlign: "right", padding: 4 }}>{constellationCountDisplay(name, used[name] ?? 0)}</td>
+            <td style={{ textAlign: "right", padding: 4 }}>{constellationCountDisplay(name, tracked[name] ?? 0)}</td>
           </tr>
         ))}
       </tbody>

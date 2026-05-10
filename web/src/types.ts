@@ -75,6 +75,30 @@ export type RadioInfo = {
   radios?: RadioBandEntry[];
 };
 
+/** GSOF type 7 — tangent-plane ENU (meters). */
+export type TangentPlaneENU = {
+  delta_east_m: number;
+  delta_north_m: number;
+  delta_up_m: number;
+};
+
+/** GSOF type 28 — receiver diagnostics. */
+export type ReceiverDiagnostics28 = {
+  base_flags?: number;
+  reference_station_info_received?: boolean;
+  link_integrity_pct?: number;
+  common_l1_svs?: number;
+  common_l2_svs?: number;
+  datalink_latency_s?: number;
+  diff_svs_in_use?: number;
+  rtk_position_age?: number;
+};
+
+export type VectorSnapshot = {
+  tangent_plane?: TangentPlaneENU;
+  diagnostics?: ReceiverDiagnostics28;
+};
+
 /** DCOL 07h RET SERIAL (reply to command 06h GET SERIAL) */
 export type DCOLRetSerial = {
   received_at: string;
@@ -146,6 +170,7 @@ export type ReceiverSnapshot = {
   delta_y_m: number;
   delta_z_m: number;
   has_baseline: boolean;
+  vector?: VectorSnapshot;
   satellites: SVInfo[];
   sv_used_by_system?: Record<string, number>;
   sv_tracked_by_system?: Record<string, number>;
