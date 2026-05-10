@@ -198,12 +198,15 @@ export function SVTrackingCard({ svs }: { svs: SVInfo[] }) {
     whiteSpace: "nowrap",
   };
 
-  const groupTh: CSSProperties = {
+  const thBand: CSSProperties = {
     ...th,
     textAlign: "center",
-    borderLeft: "1px solid var(--table-border)",
     padding: "6px 4px",
-    fontSize: 11,
+    verticalAlign: "bottom",
+  };
+  const thBandFirst: CSSProperties = {
+    ...thBand,
+    borderLeft: "1px solid var(--table-border)",
   };
 
   if (tracked.length === 0) {
@@ -244,75 +247,64 @@ export function SVTrackingCard({ svs }: { svs: SVInfo[] }) {
         <table style={{ width: "100%", borderCollapse: "collapse", margin: 0 }}>
           <thead>
             <tr>
-              <th rowSpan={2} style={th}>
+              <th style={th}>
                 <button type="button" style={{ ...btnReset, textAlign: "left" }} onClick={() => onSort("system")}>
                   System{sortMark("system")}
                 </button>
               </th>
-              <th rowSpan={2} style={{ ...th, textAlign: "right", paddingLeft: 8 }}>
+              <th style={{ ...th, textAlign: "right", paddingLeft: 8 }}>
                 <button type="button" style={{ ...btnReset, textAlign: "right", paddingLeft: 8 }} onClick={() => onSort("prn")}>
                   PRN{sortMark("prn")}
                 </button>
               </th>
-              <th rowSpan={2} style={{ ...th, textAlign: "right", paddingLeft: 8 }}>
+              <th style={{ ...th, textAlign: "right", paddingLeft: 8 }}>
                 <button type="button" style={{ ...btnReset, textAlign: "right", paddingLeft: 8 }} onClick={() => onSort("elev")}>
                   Elev°{sortMark("elev")}
                 </button>
               </th>
-              <th rowSpan={2} style={{ ...th, textAlign: "right", paddingLeft: 8 }}>
+              <th style={{ ...th, textAlign: "right", paddingLeft: 8 }}>
                 <button type="button" style={{ ...btnReset, textAlign: "right", paddingLeft: 8 }} onClick={() => onSort("azim")}>
                   Azim°{sortMark("azim")}
                 </button>
               </th>
-              <th rowSpan={2} style={{ ...th, paddingLeft: 10 }}>
+              <th style={{ ...th, paddingLeft: 10 }}>
                 <button type="button" style={{ ...btnReset, textAlign: "left", paddingLeft: 10 }} onClick={() => onSort("position")}>
                   Position{sortMark("position")}
                 </button>
               </th>
-              <th rowSpan={2} style={{ ...th, paddingLeft: 10 }}>
+              <th style={{ ...th, paddingLeft: 10 }}>
                 <button type="button" style={{ ...btnReset, textAlign: "left", paddingLeft: 10 }} onClick={() => onSort("rtk")}>
                   RTK{sortMark("rtk")}
                 </button>
               </th>
-              <th colSpan={2} style={{ ...groupTh, borderLeft: "1px solid var(--table-border)" }}>
-                L1
-              </th>
-              <th colSpan={2} style={groupTh}>
-                L2
-              </th>
-              <th colSpan={2} style={groupTh}>
-                L5
-              </th>
-            </tr>
-            <tr>
-              <th style={{ ...th, textAlign: "center", borderLeft: "1px solid var(--table-border)", padding: "4px 6px" }}>
+              <th style={thBandFirst}>
                 <button type="button" style={{ ...btnReset, textAlign: "center" }} onClick={() => onSort("l1cn")}>
-                  C/N₀{sortMark("l1cn")}
+                  L1 C/N₀{sortMark("l1cn")}
                 </button>
               </th>
-              <th style={{ ...th, textAlign: "center", padding: "4px 6px" }}>
+              <th style={thBand}>
                 <button type="button" style={{ ...btnReset, textAlign: "center" }} onClick={() => onSort("l1tr")}>
-                  Tracking{sortMark("l1tr")}
+                  L1 Tracking{sortMark("l1tr")}
                 </button>
               </th>
-              <th style={{ ...th, textAlign: "center", padding: "4px 6px" }}>
+              <th style={thBand}>
                 <button type="button" style={{ ...btnReset, textAlign: "center" }} onClick={() => onSort("l2cn")}>
-                  C/N₀{sortMark("l2cn")}
+                  L2 C/N₀{sortMark("l2cn")}
                 </button>
               </th>
-              <th style={{ ...th, textAlign: "center", padding: "4px 6px" }}>
+              <th style={thBand}>
                 <button type="button" style={{ ...btnReset, textAlign: "center" }} onClick={() => onSort("l2tr")}>
-                  Tracking{sortMark("l2tr")}
+                  L2 Tracking{sortMark("l2tr")}
                 </button>
               </th>
-              <th style={{ ...th, textAlign: "center", padding: "4px 6px" }}>
+              <th style={thBand}>
                 <button type="button" style={{ ...btnReset, textAlign: "center" }} onClick={() => onSort("l5cn")}>
-                  C/N₀{sortMark("l5cn")}
+                  L5 C/N₀{sortMark("l5cn")}
                 </button>
               </th>
-              <th style={{ ...th, textAlign: "center", padding: "4px 6px" }}>
+              <th style={thBand}>
                 <button type="button" style={{ ...btnReset, textAlign: "center" }} onClick={() => onSort("l5tr")}>
-                  Tracking{sortMark("l5tr")}
+                  L5 Tracking{sortMark("l5tr")}
                 </button>
               </th>
             </tr>
