@@ -9,10 +9,12 @@ type SortCol =
   | "azim"
   | "position"
   | "rtk"
-  | "l12cn"
-  | "l12tr"
-  | "l56cn"
-  | "l56tr";
+  | "l1cn"
+  | "l1tr"
+  | "l2cn"
+  | "l2tr"
+  | "l5cn"
+  | "l5tr";
 
 function cmpTie(a: SVInfo, b: SVInfo): number {
   const ia = sysIndex(a);
@@ -21,15 +23,15 @@ function cmpTie(a: SVInfo, b: SVInfo): number {
   return a.prn - b.prn;
 }
 
-function fmtL12Cn(sv: SVInfo): string {
-  const parts = [sv.cn0_db_hz.toFixed(1)];
-  if (sv.cn0_l2_db_hz != null) {
-    parts.push(sv.cn0_l2_db_hz.toFixed(1));
-  }
-  return parts.join("/");
+function fmtL1Cn(sv: SVInfo): string {
+  return sv.cn0_db_hz.toFixed(1);
 }
 
-function fmtL56Cn(sv: SVInfo): string {
+function fmtL2Cn(sv: SVInfo): string {
+  return sv.cn0_l2_db_hz != null ? sv.cn0_l2_db_hz.toFixed(1) : "—";
+}
+
+function fmtL5Cn(sv: SVInfo): string {
   return sv.cn0_l56_db_hz != null ? sv.cn0_l56_db_hz.toFixed(1) : "—";
 }
 
@@ -59,17 +61,23 @@ function compareSv(a: SVInfo, b: SVInfo, col: SortCol, asc: boolean): number {
     case "rtk":
       v = Number(a.used_in_rtk) - Number(b.used_in_rtk);
       break;
-    case "l12cn":
-      v = fmtL12Cn(a).localeCompare(fmtL12Cn(b));
+    case "l1cn":
+      v = fmtL1Cn(a).localeCompare(fmtL1Cn(b));
       break;
-    case "l12tr":
-      v = dispTrack(a.track_l12).localeCompare(dispTrack(b.track_l12));
+    case "l1tr":
+      v = dispTrack(a.track_l1).localeCompare(dispTrack(b.track_l1));
       break;
-    case "l56cn":
-      v = fmtL56Cn(a).localeCompare(fmtL56Cn(b));
+    case "l2cn":
+      v = fmtL2Cn(a).localeCompare(fmtL2Cn(b));
       break;
-    case "l56tr":
-      v = dispTrack(a.track_l56).localeCompare(dispTrack(b.track_l56));
+    case "l2tr":
+      v = dispTrack(a.track_l2).localeCompare(dispTrack(b.track_l2));
+      break;
+    case "l5cn":
+      v = fmtL5Cn(a).localeCompare(fmtL5Cn(b));
+      break;
+    case "l5tr":
+      v = dispTrack(a.track_l5).localeCompare(dispTrack(b.track_l5));
       break;
     default:
       v = 0;
@@ -125,7 +133,7 @@ export function SVTrackingCard({ svs }: { svs: SVInfo[] }) {
       setSortAsc(!sortAsc);
     } else {
       setSortCol(col);
-      setSortAsc(col === "system" || col === "position" || col === "l12tr" || col === "l56tr");
+      setSortAsc(col === "system" || col === "position" || col === "l1tr" || col === "l2tr" || col === "l5tr");
     }
   }
 
@@ -194,8 +202,9 @@ export function SVTrackingCard({ svs }: { svs: SVInfo[] }) {
   return (
     <>
       <p style={{ fontSize: 12, color: "var(--app-muted)", margin: "0 0 12px", lineHeight: 1.4 }}>
-        GSOF record 34: per-band C/N₀ when present (L1 then L2 in the first group); tracking codes derive from SV Flags2
-        (constellation-specific). Click a column header to sort.
+        GSOF record 34: one C/N₀ value per frequency column when the extended 10-byte SV row is present. Tracking codes
+        come from SV Flags2 (constellation-specific). The <strong>L5</strong> column includes Galileo E5/E6-class signals
+        (E6 shares this column). Click a column header to sort.
       </p>
       <div className="row" style={{ gap: 8, marginBottom: 12, flexWrap: "wrap" }}>
         <button
@@ -251,31 +260,44 @@ export function SVTrackingCard({ svs }: { svs: SVInfo[] }) {
                 </button>
               </th>
               <th colSpan={2} style={{ ...groupTh, borderLeft: "1px solid var(--table-border)" }}>
-                L1 / L2
+                L1
               </th>
               <th colSpan={2} style={groupTh}>
-                L5 / L6
+                L2
+              </th>
+              <th colSpan={2} style={groupTh}>
+                L5
               </th>
             </tr>
             <tr>
               <th style={{ ...th, textAlign: "center", borderLeft: "1px solid var(--table-border)", padding: "4px 6px" }}>
-                <button type="button" style={{ ...btnReset, textAlign: "center" }} onClick={() => onSort("l12cn")}>
-                  C/N₀{sortMark("l12cn")}
+                <button type="button" style={{ ...btnReset, textAlign: "center" }} onClick={() => onSort("l1cn")}>
+                  C/N₀{sortMark("l1cn")}
                 </button>
               </th>
               <th style={{ ...th, textAlign: "center", padding: "4px 6px" }}>
-                <button type="button" style={{ ...btnReset, textAlign: "center" }} onClick={() => onSort("l12tr")}>
-                  Tracking{sortMark("l12tr")}
+                <button type="button" style={{ ...btnReset, textAlign: "center" }} onClick={() => onSort("l1tr")}>
+                  Tracking{sortMark("l1tr")}
                 </button>
               </th>
               <th style={{ ...th, textAlign: "center", padding: "4px 6px" }}>
-                <button type="button" style={{ ...btnReset, textAlign: "center" }} onClick={() => onSort("l56cn")}>
-                  C/N₀{sortMark("l56cn")}
+                <button type="button" style={{ ...btnReset, textAlign: "center" }} onClick={() => onSort("l2cn")}>
+                  C/N₀{sortMark("l2cn")}
                 </button>
               </th>
               <th style={{ ...th, textAlign: "center", padding: "4px 6px" }}>
-                <button type="button" style={{ ...btnReset, textAlign: "center" }} onClick={() => onSort("l56tr")}>
-                  Tracking{sortMark("l56tr")}
+                <button type="button" style={{ ...btnReset, textAlign: "center" }} onClick={() => onSort("l2tr")}>
+                  Tracking{sortMark("l2tr")}
+                </button>
+              </th>
+              <th style={{ ...th, textAlign: "center", padding: "4px 6px" }}>
+                <button type="button" style={{ ...btnReset, textAlign: "center" }} onClick={() => onSort("l5cn")}>
+                  C/N₀{sortMark("l5cn")}
+                </button>
+              </th>
+              <th style={{ ...th, textAlign: "center", padding: "4px 6px" }}>
+                <button type="button" style={{ ...btnReset, textAlign: "center" }} onClick={() => onSort("l5tr")}>
+                  Tracking{sortMark("l5tr")}
                 </button>
               </th>
             </tr>
@@ -291,10 +313,12 @@ export function SVTrackingCard({ svs }: { svs: SVInfo[] }) {
                   <td style={tdNum}>{sv.azimuth_deg.toFixed(0)}</td>
                   <td style={{ ...td, paddingLeft: 10 }}>{sv.used_in_position ? "Used" : "Not used"}</td>
                   <td style={{ ...tdMono, paddingLeft: 10 }}>{sv.used_in_rtk ? "Yes" : "—"}</td>
-                  <td style={{ ...tdNum, borderLeft: "1px solid var(--table-border)" }}>{fmtL12Cn(sv)}</td>
-                  <td style={tdMono}>{dispTrack(sv.track_l12)}</td>
-                  <td style={tdNum}>{fmtL56Cn(sv)}</td>
-                  <td style={tdMono}>{dispTrack(sv.track_l56)}</td>
+                  <td style={{ ...tdNum, borderLeft: "1px solid var(--table-border)" }}>{fmtL1Cn(sv)}</td>
+                  <td style={tdMono}>{dispTrack(sv.track_l1)}</td>
+                  <td style={tdNum}>{fmtL2Cn(sv)}</td>
+                  <td style={tdMono}>{dispTrack(sv.track_l2)}</td>
+                  <td style={tdNum}>{fmtL5Cn(sv)}</td>
+                  <td style={tdMono}>{dispTrack(sv.track_l5)}</td>
                 </tr>
               );
             })}

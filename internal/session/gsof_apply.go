@@ -146,7 +146,7 @@ func ApplyGSOFBuffer(snap *ReceiverSnapshot, gsofBuf []byte) {
 func detailToSVInfo(d []gsof.DetailSV) []SVInfo {
 	out := make([]SVInfo, 0, len(d))
 	for _, s := range d {
-		t12, t56 := gsof.TrackingLabelsL12L56(s.System, s.Flags2)
+		t1, t2, t5 := gsof.TrackingLabelsL1L2L5(s.System, s.Flags2)
 		var l2, l56 *float64
 		if s.HasL2 {
 			v := s.CN0L2
@@ -164,8 +164,9 @@ func detailToSVInfo(d []gsof.DetailSV) []SVInfo {
 			CN0:       s.CN0L1,
 			CN0L2:     l2,
 			CN0L56:    l56,
-			TrackL12:  t12,
-			TrackL56:  t56,
+			TrackL1:   t1,
+			TrackL2:   t2,
+			TrackL5:   t5,
 			UsedInPos: gsof.Flags1UsedInPos(s.Flags1),
 			UsedInRTK: gsof.Flags1UsedInRTK(s.Flags1),
 		})

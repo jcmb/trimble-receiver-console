@@ -23,9 +23,10 @@ type SVInfo struct {
 	Azimuth   float64 `json:"azimuth_deg"`
 	CN0       float64  `json:"cn0_db_hz"` // L1 (first carrier); backward-compatible primary SNR
 	CN0L2     *float64 `json:"cn0_l2_db_hz,omitempty"`
-	CN0L56    *float64 `json:"cn0_l56_db_hz,omitempty"`
-	TrackL12  string   `json:"track_l12,omitempty"` // slash-separated signal codes for L1/L2 bucket
-	TrackL56  string   `json:"track_l56,omitempty"` // L5 / E5 / Alt bucket
+	CN0L56    *float64 `json:"cn0_l56_db_hz,omitempty"` // third SNR byte — displayed in L5 column
+	TrackL1   string   `json:"track_l1,omitempty"`
+	TrackL2   string   `json:"track_l2,omitempty"`
+	TrackL5   string   `json:"track_l5,omitempty"` // includes Galileo E6 with E5a/E5b/Alt
 	UsedInPos bool     `json:"used_in_position"`
 	UsedInRTK bool     `json:"used_in_rtk"`
 }

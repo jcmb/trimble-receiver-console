@@ -21,13 +21,8 @@ export function trackedSatellitesForSky(svs: SVInfo[]): SVInfo[] {
 
 export type SvDetailRow = { label: string; value: string };
 
-function formatCnStack(sv: SVInfo): string {
-  const l12: string[] = [sv.cn0_db_hz.toFixed(1)];
-  if (sv.cn0_l2_db_hz != null) {
-    l12.push(sv.cn0_l2_db_hz.toFixed(1));
-  }
-  const l56 = sv.cn0_l56_db_hz != null ? sv.cn0_l56_db_hz.toFixed(1) : "—";
-  return `L1/L2: ${l12.join("/")} dB-Hz · L5/6: ${l56} dB-Hz`;
+function fmtCn(v: number | undefined): string {
+  return v != null && Number.isFinite(v) ? `${v.toFixed(1)} dB-Hz` : "—";
 }
 
 /** Rows matching the sky-plot hover tooltip (structured for the tracking card). */
@@ -40,14 +35,14 @@ export function svDetailRows(sv: SVInfo): SvDetailRow[] {
       value: `${sv.elevation_deg.toFixed(0)}° · ${sv.azimuth_deg.toFixed(0)}°`,
     },
     {
-      label: "C/N₀ (L1/L2 · L5/6)",
-      value: formatCnStack(sv),
+      label: "C/N₀",
+      value: `L1 ${fmtCn(sv.cn0_db_hz)} · L2 ${fmtCn(sv.cn0_l2_db_hz)} · L5 ${fmtCn(sv.cn0_l56_db_hz)}`,
     },
   ];
-  if (sv.track_l12 || sv.track_l56) {
+  if (sv.track_l1 || sv.track_l2 || sv.track_l5) {
     rows.push({
       label: "Tracking",
-      value: `L1/L2: ${sv.track_l12 || "—"} · L5/6: ${sv.track_l56 || "—"}`,
+      value: `L1 ${sv.track_l1 || "—"} · L2 ${sv.track_l2 || "—"} · L5 ${sv.track_l5 || "—"}`,
     });
   }
   rows.push({
@@ -66,10 +61,10 @@ export function svTooltipText(sv: SVInfo): string {
   const lines = [
     `${sys} PRN ${sv.prn}`,
     `Elevation ${sv.elevation_deg.toFixed(0)}° · Azimuth ${sv.azimuth_deg.toFixed(0)}°`,
-    formatCnStack(sv),
+    `L1 C/N₀ ${sv.cn0_db_hz.toFixed(1)} dB-Hz · L2 ${sv.cn0_l2_db_hz != null ? sv.cn0_l2_db_hz.toFixed(1) : "—"} · L5 ${sv.cn0_l56_db_hz != null ? sv.cn0_l56_db_hz.toFixed(1) : "—"} dB-Hz`,
   ];
-  if (sv.track_l12 || sv.track_l56) {
-    lines.push(`Track L1/L2: ${sv.track_l12 || "—"} · L5/6: ${sv.track_l56 || "—"}`);
+  if (sv.track_l1 || sv.track_l2 || sv.track_l5) {
+    lines.push(`Track L1 ${sv.track_l1 || "—"} · L2 ${sv.track_l2 || "—"} · L5 ${sv.track_l5 || "—"}`);
   }
   lines.push(sv.used_in_position ? "Used in position" : "Not used in position");
   if (sv.used_in_rtk) {
