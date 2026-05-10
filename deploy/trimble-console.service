@@ -1,0 +1,12 @@
+[Unit]
+Description=Trimble receiver console (GSOF / DCOL TCP ingress + web UI)
+After=network.target
+
+[Service]
+Type=simple
+EnvironmentFile=-/etc/default/trimble-console
+ExecStart=/usr/local/bin/trimble-console
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target

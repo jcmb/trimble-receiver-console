@@ -1,0 +1,26 @@
+# Copy to config.yaml and adjust.
+
+http_listen: "127.0.0.1:8080"
+
+# When "groups" is non-empty, each group has its own TCP port.
+# When "groups" is omitted, a single default group uses tcp_listen (backward compatible).
+groups:
+  - id: yard
+    name: "Yard"
+    tcp_listen: "0.0.0.0:9001"
+    people: [] # reserved for future Google auth / roster
+  - id: field
+    name: "Field ops"
+    tcp_listen: "0.0.0.0:9002"
+    people: []
+
+# Legacy (used only if groups: is empty):
+# tcp_listen: "0.0.0.0:9000"
+
+default_mode: "read_write"
+ignore_tcp_gsof_transmission_gap1: true
+
+cors_origins:
+  - "*"
+
+map_tile_url: "https://tile.openstreetmap.org/{z}/{x}/{y}.png"
