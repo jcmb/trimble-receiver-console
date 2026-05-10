@@ -11,23 +11,23 @@ import {
 const SAT_COLORS_DARK = [
   "#8ab4f8",
   "#fbbc04",
-  "#81c995",
+  "#26c6da", // GLONASS — teal (distinct from MSS)
   "#c58af9",
   "#ff8a65",
   "#4dd0e1",
   "#f48fb1",
-  "#aed581",
+  "#ff5252", // MSS — red (was yellow-green; contrast with GLONASS)
   "#78909c",
 ];
 const SAT_COLORS_LIGHT = [
   "#1967d2",
   "#e37400",
-  "#137333",
+  "#2e7d32", // GLONASS — forest green
   "#8430ce",
   "#c5221f",
   "#007b83",
   "#ad1457",
-  "#558b2f",
+  "#6a1b9a", // MSS — deep purple (distinct from GLONASS green)
   "#455a64",
 ];
 

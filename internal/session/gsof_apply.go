@@ -155,13 +155,35 @@ func ApplyGSOFBuffer(snap *ReceiverSnapshot, gsofBuf []byte) {
 	}
 
 	if len(detail48) > 0 {
-		snap.SVs = detailToSVInfo(detail48)
+		snap.SVs = detailToSVInfo(dedupeDetailSVKeepLast(detail48))
 	} else if len(detail34) > 0 {
-		snap.SVs = detailToSVInfo(detail34)
+		snap.SVs = detailToSVInfo(dedupeDetailSVKeepLast(detail34))
 	} else if len(brief) > 0 {
 		snap.SVs = briefToSVInfo(brief)
 	}
 	rebuildSVCounts(snap)
+}
+
+// dedupeDetailSVKeepLast collapses duplicate (system, PRN) rows from multiple GSOF ALL-SV
+// records or pages; the last row wins so the snapshot matches one row per SV.
+func dedupeDetailSVKeepLast(in []gsof.DetailSV) []gsof.DetailSV {
+	if len(in) <= 1 {
+		return in
+	}
+	order := make([]string, 0, len(in))
+	m := make(map[string]gsof.DetailSV)
+	for _, s := range in {
+		k := strconv.Itoa(s.System) + ":" + strconv.Itoa(s.PRN)
+		if _, ok := m[k]; !ok {
+			order = append(order, k)
+		}
+		m[k] = s
+	}
+	out := make([]gsof.DetailSV, 0, len(order))
+	for _, k := range order {
+		out = append(out, m[k])
+	}
+	return out
 }
 
 func detailToSVInfo(d []gsof.DetailSV) []SVInfo {

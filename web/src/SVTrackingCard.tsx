@@ -202,12 +202,9 @@ export function SVTrackingCard({ svs }: { svs: SVInfo[] }) {
     fontSize: 12,
   };
 
-  /** Tracking codes — isolate from numeric C/N₀ columns so long labels do not visually bleed */
+  /** Tracking codes — keep full label visible (no ellipsis squeeze into C/N column). */
   const tdTrack: CSSProperties = {
     ...tdMono,
-    maxWidth: "7.5rem",
-    overflow: "hidden",
-    textOverflow: "ellipsis",
     whiteSpace: "nowrap",
   };
 
@@ -245,11 +242,6 @@ export function SVTrackingCard({ svs }: { svs: SVInfo[] }) {
 
   return (
     <>
-      <p style={{ fontSize: 12, color: "var(--app-muted)", margin: "0 0 12px", lineHeight: 1.4 }}>
-        GSOF ALL SV detail (records 48 or 34): one C/N₀ value per frequency column when the extended 10-byte SV row is present. Tracking codes
-        come from SV Flags2 (constellation-specific). The <strong>L5</strong> column includes Galileo E5/E6-class signals
-        (E6 shares this column). C/N₀ of <strong>0.0</strong> means that frequency is not being tracked (shown as —). Click a column header to sort.
-      </p>
       <div className="row" style={{ gap: 8, marginBottom: 12, flexWrap: "wrap" }}>
         <button
           type="button"
