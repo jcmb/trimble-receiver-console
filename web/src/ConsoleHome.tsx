@@ -689,102 +689,106 @@ function VectorCard({ vector }: { vector?: VectorSnapshot }) {
   const tp = vector.tangent_plane;
   const d = vector.diagnostics;
   const tdL: CSSProperties = {
-    padding: "8px 12px 8px 0",
+    padding: "8px 14px 8px 0",
     verticalAlign: "top",
     color: "var(--app-muted)",
     fontSize: 12,
-    width: "5.5rem",
+    whiteSpace: "nowrap",
+    width: "11rem",
+    maxWidth: "42%",
   };
   const tdV: CSSProperties = {
     padding: "8px 12px 8px 0",
     fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
     fontSize: 13,
     color: "var(--app-text)",
-  };
-  const captionStyle: CSSProperties = {
-    captionSide: "top",
-    textAlign: "left",
-    padding: "0 0 8px",
-    fontSize: 12,
-    fontWeight: 500,
-    color: "var(--app-text)",
-    lineHeight: 1.35,
+    width: "auto",
   };
   const tableStyle: CSSProperties = { width: "100%", borderCollapse: "collapse" };
-  const both = Boolean(tp && d);
+  const mono: CSSProperties = {
+    fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
+    fontSize: 13,
+    color: "var(--app-text)",
+  };
+  const deltaBarStyle: CSSProperties = {
+    marginTop: d ? 14 : 0,
+    paddingTop: d ? 12 : 0,
+    borderTop: d ? "1px solid var(--table-border)" : undefined,
+    display: "flex",
+    flexWrap: "wrap",
+    alignItems: "baseline",
+    gap: "10px 28px",
+    rowGap: 10,
+  };
+  const deltaItemStyle: CSSProperties = {
+    display: "flex",
+    flexWrap: "wrap",
+    alignItems: "baseline",
+    gap: "8px 10px",
+    minWidth: "min(100%, 12rem)",
+  };
+  const deltaLabelStyle: CSSProperties = {
+    fontSize: 12,
+    color: "var(--app-muted)",
+    whiteSpace: "nowrap",
+  };
   return (
     <div className="status-card">
       <h3 className="status-card-title mixed-case">Vector</h3>
-      <div
-        style={
-          both
-            ? {
-                display: "grid",
-                gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-                gap: "16px 20px",
-                alignItems: "start",
-              }
-            : undefined
-        }
-      >
-        {tp && (
-          <table style={tableStyle}>
-            <caption style={captionStyle}>Δ East / North / Up — tangent plane at base (type 7, m)</caption>
-            <tbody>
-              <tr>
-                <td style={tdL}>Δ East</td>
-                <td style={tdV}>{tp.delta_east_m.toFixed(4)}</td>
-              </tr>
-              <tr>
-                <td style={tdL}>Δ North</td>
-                <td style={tdV}>{tp.delta_north_m.toFixed(4)}</td>
-              </tr>
-              <tr>
-                <td style={tdL}>Δ Up</td>
-                <td style={tdV}>{tp.delta_up_m.toFixed(4)}</td>
-              </tr>
-            </tbody>
-          </table>
-        )}
-        {d && (
-          <table style={tableStyle}>
-            <tbody>
-              <tr>
-                <td style={tdL}>Ref. station info</td>
-                <td style={tdV}>{d.reference_station_info_received ? "Received" : "—"}</td>
-              </tr>
-              <tr>
-                <td style={tdL}>Link integrity</td>
-                <td style={tdV}>
-                  {d.link_integrity_pct != null ? `${d.link_integrity_pct.toFixed(1)}%` : "—"}
-                </td>
-              </tr>
-              <tr>
-                <td style={tdL}>Common L1 / L2 SVs</td>
-                <td style={tdV}>
-                  {(d.common_l1_svs ?? "—") + " / " + (d.common_l2_svs ?? "—")}
-                </td>
-              </tr>
-              <tr>
-                <td style={tdL}>Datalink latency</td>
-                <td style={tdV}>
-                  {d.datalink_latency_s != null ? `${d.datalink_latency_s.toFixed(1)} s` : "—"}
-                </td>
-              </tr>
-              <tr>
-                <td style={tdL}>Diff SVs in use</td>
-                <td style={tdV}>{d.diff_svs_in_use ?? "—"}</td>
-              </tr>
-              <tr>
-                <td style={tdL}>RTK position age</td>
-                <td style={tdV}>
-                  {d.rtk_position_age != null ? `${d.rtk_position_age.toFixed(1)} s` : "—"}
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        )}
-      </div>
+      {d && (
+        <table style={tableStyle}>
+          <tbody>
+            <tr>
+              <td style={tdL}>Ref. station info</td>
+              <td style={tdV}>{d.reference_station_info_received ? "Received" : "—"}</td>
+            </tr>
+            <tr>
+              <td style={tdL}>Link integrity</td>
+              <td style={tdV}>
+                {d.link_integrity_pct != null ? `${d.link_integrity_pct.toFixed(1)}%` : "—"}
+              </td>
+            </tr>
+            <tr>
+              <td style={tdL}>Common L1 / L2 SVs</td>
+              <td style={tdV}>
+                {(d.common_l1_svs ?? "—") + " / " + (d.common_l2_svs ?? "—")}
+              </td>
+            </tr>
+            <tr>
+              <td style={tdL}>Datalink latency</td>
+              <td style={tdV}>
+                {d.datalink_latency_s != null ? `${d.datalink_latency_s.toFixed(1)} s` : "—"}
+              </td>
+            </tr>
+            <tr>
+              <td style={tdL}>Diff SVs in use</td>
+              <td style={tdV}>{d.diff_svs_in_use ?? "—"}</td>
+            </tr>
+            <tr>
+              <td style={tdL}>RTK position age</td>
+              <td style={tdV}>
+                {d.rtk_position_age != null ? `${d.rtk_position_age.toFixed(2)} s` : "—"}
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      )}
+      {tp && (
+        <div style={deltaBarStyle}>
+          <div style={deltaItemStyle}>
+            <span style={deltaLabelStyle}>Δ East (m)</span>
+            <span style={mono}>{tp.delta_east_m.toFixed(4)}</span>
+          </div>
+          <div style={deltaItemStyle}>
+            <span style={deltaLabelStyle}>Δ North (m)</span>
+            <span style={mono}>{tp.delta_north_m.toFixed(4)}</span>
+          </div>
+          <div style={deltaItemStyle}>
+            <span style={deltaLabelStyle}>Δ Up (m)</span>
+            <span style={mono}>{tp.delta_up_m.toFixed(4)}</span>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

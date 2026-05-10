@@ -113,7 +113,7 @@ type ReceiverDiagnostics28 struct {
 	CommonL2SVs                  int     `json:"common_l2_svs,omitempty"`
 	DatalinkLatencySec           float64 `json:"datalink_latency_s,omitempty"`
 	DiffSVsInUse                 int     `json:"diff_svs_in_use,omitempty"`
-	// RTKPositionAge is seconds; payload byte is in units of 0.1 s (Trimble GSOF type 28).
+	// RTKPositionAge is seconds; payload byte × 0.01 (Trimble GSOF type 28).
 	RTKPositionAge float64 `json:"rtk_position_age,omitempty"`
 }
 
@@ -132,7 +132,7 @@ func ParseReceiverDiagnosticsType28(payload []byte) (*ReceiverDiagnostics28, boo
 		CommonL2SVs:                  int(payload[10]),
 		DatalinkLatencySec:           float64(payload[11]) * 0.1,
 		DiffSVsInUse:                 int(payload[13]),
-		RTKPositionAge:               float64(payload[16]) * 0.1,
+		RTKPositionAge:               float64(payload[16]) * 0.01,
 	}
 	return out, true
 }

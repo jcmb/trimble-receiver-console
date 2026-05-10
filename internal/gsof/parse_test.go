@@ -203,7 +203,7 @@ func TestParseReceiverDiagnosticsType28(t *testing.T) {
 	if out.DatalinkLatencySec != 1.5 {
 		t.Fatalf("latency %v", out.DatalinkLatencySec)
 	}
-	if math.Abs(out.RTKPositionAge-0.9) > 1e-9 {
-		t.Fatalf("rtk age sec got %v want 0.9", out.RTKPositionAge)
+	if math.Abs(out.RTKPositionAge-0.09) > 1e-9 {
+		t.Fatalf("rtk age sec got %v want 0.09", out.RTKPositionAge)
 	}
 }
