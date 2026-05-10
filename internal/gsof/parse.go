@@ -641,6 +641,11 @@ func SystemName(sys int) string {
 		return "QZSS"
 	case SysBDS:
 		return "BeiDou"
+	case 6:
+		return "NavIC"
+	case 10:
+		// Trimble extended SV system: MSS / OmniSTAR / RTX L-band (not a GNSS slot; avoid folding with %6).
+		return "RTX (MSS)"
 	default:
 		return "Other"
 	}

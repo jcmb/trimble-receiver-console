@@ -26,3 +26,18 @@ func TestTrackingLabelsGPSL2P(t *testing.T) {
 		t.Fatalf("got L1=%q L2=%q", l1, l2)
 	}
 }
+
+func TestTrackingLabelsMSSUsesGPSFlagMapNotQZSS(t *testing.T) {
+	const sys = 10
+	flags := byte(0x04) // GPS: L2 CS on bit 2; QZSS same bits would map to L1-SAIF on L1.
+	l1, l2, l5 := TrackingLabelsL1L2L5(sys, flags)
+	if l1 != "C/A" {
+		t.Fatalf("L1 want C/A got %q", l1)
+	}
+	if l2 != "CS" {
+		t.Fatalf("L2 want CS got %q", l2)
+	}
+	if l5 != "" {
+		t.Fatalf("L5 want empty got %q", l5)
+	}
+}

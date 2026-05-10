@@ -19,9 +19,16 @@ func TrackingLabelsL1L2L5(system int, flags2 byte) (l1, l2, l5 string) {
 }
 
 func trackingPartsL1L2L5(system int, f byte) (l1, l2, l5 []string) {
-	n := system % 6
-	if n < 0 {
-		n += 6
+	var n int
+	switch system {
+	case 10:
+		// MSS / OmniSTAR / RTX L-band — must not use QZSS flag map (10%6 == 4).
+		n = 0
+	default:
+		n = system % 6
+		if n < 0 {
+			n += 6
+		}
 	}
 	switch n {
 	case 0, 1: // GPS, SBAS

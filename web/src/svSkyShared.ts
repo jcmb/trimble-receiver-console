@@ -1,10 +1,30 @@
 import type { SVInfo } from "./types";
 
-export const SV_SYSTEM_NAMES = ["GPS", "SBAS", "GLO", "Gal", "QZSS", "BDS"] as const;
+/** Display buckets aligned with Trimble GSOF SV System byte (records 34/48). Do not modulo-fold: e.g. 10→MSS, not QZSS. */
+export const SV_SYSTEM_NAMES = [
+  "GPS",
+  "SBAS",
+  "GLO",
+  "Gal",
+  "QZSS",
+  "BDS",
+  "NavIC",
+  "MSS",
+  "Other",
+] as const;
 
 export function sysIndex(sv: SVInfo): number {
-  const n = SV_SYSTEM_NAMES.length;
-  return ((sv.system % n) + n) % n;
+  const s = sv.system;
+  if (s >= 0 && s <= 5) {
+    return s;
+  }
+  if (s === 6) {
+    return 6;
+  }
+  if (s === 10) {
+    return 7;
+  }
+  return 8;
 }
 
 /** Same eligibility filter as the sky plot (exclude placeholder-only rows). */

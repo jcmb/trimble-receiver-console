@@ -7,6 +7,7 @@ import { SkyPlot } from "./SkyPlot";
 import { SVTrackingCard } from "./SVTrackingCard";
 import { ConfigForm } from "./ConfigForm";
 import { ThemeToggle } from "./ThemeToggle";
+import { trimbleRetSerialAntennaLabel } from "./trimbleAntennaLabels";
 
 type Tab = "list" | "map" | "detail";
 
@@ -19,6 +20,29 @@ function tabLabel(t: Tab): string {
     case "detail":
       return "Detail";
   }
+}
+
+function MainTabNav({ tab, setTab }: { tab: Tab; setTab: (t: Tab) => void }) {
+  return (
+    <nav className="row" style={{ gap: 8, flexWrap: "wrap" }}>
+      {(["list", "map", "detail"] as Tab[]).map((t) => (
+        <button key={t} type="button" onClick={() => setTab(t)} className={`nav-tab${tab === t ? " active" : ""}`}>
+          {tabLabel(t)}
+        </button>
+      ))}
+    </nav>
+  );
+}
+
+/** Nav processor field from RET SERIAL is encoded in centi-units; display as value/100. */
+function formatNavFirmwareHundredths(raw: string | undefined): string {
+  const t = raw?.trim();
+  if (!t) return "—";
+  const digits = t.replace(/[^\d]/g, "");
+  if (digits.length === 0) return t;
+  const n = parseInt(digits, 10);
+  if (!Number.isFinite(n)) return t;
+  return (n / 100).toFixed(2);
 }
 
 export default function ConsoleHome() {
@@ -209,6 +233,10 @@ export default function ConsoleHome() {
         </p>
       </header>
 
+      <div className="panel footer-tab-bar" style={{ margin: "0 12px 8px", flexShrink: 0 }}>
+        <MainTabNav tab={tab} setTab={setTab} />
+      </div>
+
       <main
         style={{
           flex: 1,
@@ -255,7 +283,7 @@ export default function ConsoleHome() {
                       </button>
                     </td>
                     <td className="muted" style={{ fontSize: 12, whiteSpace: "nowrap" }}>
-                      {r.firmware_version?.trim() ? r.firmware_version : "—"}
+                      {listFirmwareDisplay(r)}
                     </td>
                     <td style={{ fontSize: 13 }}>
                       {r.has_position_type ? `${r.position_type_label} (${r.position_type})` : "—"}
@@ -364,13 +392,7 @@ export default function ConsoleHome() {
       </main>
 
       <footer className="panel footer-tab-bar" style={{ margin: "0 12px 12px", flexShrink: 0 }}>
-        <nav className="row" style={{ gap: 8, flexWrap: "wrap" }}>
-          {(["list", "map", "detail"] as Tab[]).map((t) => (
-            <button key={t} type="button" onClick={() => setTab(t)} className={`nav-tab${tab === t ? " active" : ""}`}>
-              {tabLabel(t)}
-            </button>
-          ))}
-        </nav>
+        <MainTabNav tab={tab} setTab={setTab} />
       </footer>
     </div>
   );
@@ -378,6 +400,19 @@ export default function ConsoleHome() {
 
 function keyOf(r: ReceiverSnapshot): string {
   return r.serial || `anon:${r.remote_addr}`;
+}
+
+/** DCOL 07h nav processor version (same presentation as detail Status panel). */
+function listFirmwareDisplay(r: ReceiverSnapshot): string {
+  const nav = r.dcol_ret_serial?.nav_processor_version;
+  if (nav?.trim()) {
+    return formatNavFirmwareHundredths(nav);
+  }
+  const top = r.firmware_version?.trim();
+  if (top) {
+    return formatNavFirmwareHundredths(r.firmware_version);
+  }
+  return "—";
 }
 
 function formatListLogging(r: ReceiverSnapshot): string {
@@ -697,13 +732,9 @@ function StatusPanel({ r }: { r: ReceiverSnapshot }) {
         </span>
       </div>
 
-      {/* DCOL 06h/07h — connection-time query; cyclic DCOL TBD */}
+      {/* DCOL 06h / 07h at TCP connect */}
       <div className="status-card">
-        <h3 className="status-card-title mixed-case">Receiver & antenna (DCOL)</h3>
-        <p className="muted" style={{ fontSize: 12, margin: "0 0 10px", lineHeight: 1.45 }}>
-          Trimble DCOL (not GSOF): this console sends command <code style={{ fontSize: "0.95em" }}>06h</code> GET SERIAL when
-          the TCP session starts; the receiver replies with <code style={{ fontSize: "0.95em" }}>07h</code> RET SERIAL.
-        </p>
+        <h3 className="status-card-title mixed-case">Receiver & antenna</h3>
         {!r.dcol_ret_serial && r.online && (
           <p className="muted" style={{ margin: 0, fontSize: 13 }}>
             Waiting for RET SERIAL (07h)…
@@ -718,30 +749,37 @@ function StatusPanel({ r }: { r: ReceiverSnapshot }) {
             <table style={{ width: "100%", borderCollapse: "collapse" }}>
               <tbody>
                 <tr>
-                  <td style={tdL}>Long serial</td>
-                  <td style={tdV}>{r.dcol_ret_serial.long_serial?.trim() || "—"}</td>
-                </tr>
-                <tr>
-                  <td style={tdL}>Serial (8-char)</td>
-                  <td style={tdV}>{r.dcol_ret_serial.receiver_serial_short?.trim() || "—"}</td>
-                </tr>
-                <tr>
                   <td style={tdL}>Receiver type</td>
                   <td style={tdV}>{r.dcol_ret_serial.receiver_type?.trim() || "—"}</td>
                 </tr>
                 <tr>
+                  <td style={tdL}>Serial number</td>
+                  <td style={tdV}>{r.dcol_ret_serial.long_serial?.trim() || "—"}</td>
+                </tr>
+                {!r.dcol_ret_serial.long_serial?.trim() && (
+                  <tr>
+                    <td style={tdL}>Serial (8-char)</td>
+                    <td style={tdV}>{r.dcol_ret_serial.receiver_serial_short?.trim() || "—"}</td>
+                  </tr>
+                )}
+                <tr>
                   <td style={tdL}>Firmware</td>
-                  <td style={tdV}>
-                    Nav {r.dcol_ret_serial.nav_processor_version?.trim() || "—"} · Sig{" "}
-                    {r.dcol_ret_serial.sig_processor_version?.trim() || "—"} · Boot{" "}
-                    {r.dcol_ret_serial.boot_rom_version?.trim() || "—"}
-                  </td>
+                  <td style={tdV}>{formatNavFirmwareHundredths(r.dcol_ret_serial.nav_processor_version)}</td>
                 </tr>
                 <tr>
                   <td style={tdL}>Antenna</td>
                   <td style={tdV}>
-                    {r.dcol_ret_serial.antenna_serial?.trim() || "—"} ({r.dcol_ret_serial.antenna_type?.trim() || "—"})
+                    {r.dcol_ret_serial.antenna_serial?.trim() || "—"} ·{" "}
+                    {trimbleRetSerialAntennaLabel(r.dcol_ret_serial.antenna_type)}
                   </td>
+                </tr>
+                <tr>
+                  <td style={tdL}>Base long ant serial</td>
+                  <td style={tdV}>{r.dcol_ret_serial.base_long_ant_serial?.trim() || "—"}</td>
+                </tr>
+                <tr>
+                  <td style={tdL}>Base NGS ant descriptor</td>
+                  <td style={tdV}>{r.dcol_ret_serial.base_ngs_ant_descriptor?.trim() || "—"}</td>
                 </tr>
                 <tr>
                   <td style={tdL}>Channels</td>
@@ -750,10 +788,6 @@ function StatusPanel({ r }: { r: ReceiverSnapshot }) {
                     Usable {r.dcol_ret_serial.usable_channels ?? "—"} · Physical {r.dcol_ret_serial.physical_channels ?? "—"} ·
                     Simult. {r.dcol_ret_serial.simultaneous_track ?? "—"}
                   </td>
-                </tr>
-                <tr>
-                  <td style={tdL}>Antenna INI</td>
-                  <td style={tdV}>{r.dcol_ret_serial.antenna_ini_version?.trim() || "—"}</td>
                 </tr>
               </tbody>
             </table>

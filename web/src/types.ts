@@ -92,6 +92,8 @@ export type DCOLRetSerial = {
   physical_channels?: number;
   simultaneous_track?: number;
   antenna_ini_version?: string;
+  base_long_ant_serial?: string;
+  base_ngs_ant_descriptor?: string;
 };
 
 export type ReceiverSnapshot = {

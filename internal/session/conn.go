@@ -156,6 +156,8 @@ func (s *ConnSession) handleMessage(m dcol.Message) {
 				RetSerialInfo: info,
 				ReceivedAt:    now,
 			}
+			// Primary firmware string from RET SERIAL (07h): navigation processor version field.
+			snap.FirmwareVersion = strings.TrimSpace(info.NavProcessorVersion)
 		}
 	}
 

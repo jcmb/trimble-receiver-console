@@ -8,8 +8,28 @@ import {
   trackedSatellitesForSky,
 } from "./svSkyShared";
 
-const SAT_COLORS_DARK = ["#8ab4f8", "#fbbc04", "#81c995", "#c58af9", "#ff8a65", "#4dd0e1"];
-const SAT_COLORS_LIGHT = ["#1967d2", "#e37400", "#137333", "#8430ce", "#c5221f", "#007b83"];
+const SAT_COLORS_DARK = [
+  "#8ab4f8",
+  "#fbbc04",
+  "#81c995",
+  "#c58af9",
+  "#ff8a65",
+  "#4dd0e1",
+  "#f48fb1",
+  "#aed581",
+  "#78909c",
+];
+const SAT_COLORS_LIGHT = [
+  "#1967d2",
+  "#e37400",
+  "#137333",
+  "#8430ce",
+  "#c5221f",
+  "#007b83",
+  "#ad1457",
+  "#558b2f",
+  "#455a64",
+];
 
 type Hit = { x: number; y: number; sv: SVInfo };
 

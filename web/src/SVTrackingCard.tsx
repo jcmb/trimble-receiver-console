@@ -280,18 +280,13 @@ export function SVTrackingCard({ svs }: { svs: SVInfo[] }) {
             </tr>
             <tr>
               <th style={{ ...th, textAlign: "center", borderLeft: "1px solid var(--table-border)", padding: "4px 6px" }}>
-                <button type="button" style={{ ...btnReset, textAlign: "center" }} onClick={() => onSort("l1tr")}>
-                  Tracking{sortMark("l1tr")}
-                </button>
-              </th>
-              <th style={{ ...th, textAlign: "center", padding: "4px 6px" }}>
                 <button type="button" style={{ ...btnReset, textAlign: "center" }} onClick={() => onSort("l1cn")}>
                   C/N₀{sortMark("l1cn")}
                 </button>
               </th>
               <th style={{ ...th, textAlign: "center", padding: "4px 6px" }}>
-                <button type="button" style={{ ...btnReset, textAlign: "center" }} onClick={() => onSort("l2tr")}>
-                  Tracking{sortMark("l2tr")}
+                <button type="button" style={{ ...btnReset, textAlign: "center" }} onClick={() => onSort("l1tr")}>
+                  Tracking{sortMark("l1tr")}
                 </button>
               </th>
               <th style={{ ...th, textAlign: "center", padding: "4px 6px" }}>
@@ -300,13 +295,18 @@ export function SVTrackingCard({ svs }: { svs: SVInfo[] }) {
                 </button>
               </th>
               <th style={{ ...th, textAlign: "center", padding: "4px 6px" }}>
-                <button type="button" style={{ ...btnReset, textAlign: "center" }} onClick={() => onSort("l5tr")}>
-                  Tracking{sortMark("l5tr")}
+                <button type="button" style={{ ...btnReset, textAlign: "center" }} onClick={() => onSort("l2tr")}>
+                  Tracking{sortMark("l2tr")}
                 </button>
               </th>
               <th style={{ ...th, textAlign: "center", padding: "4px 6px" }}>
                 <button type="button" style={{ ...btnReset, textAlign: "center" }} onClick={() => onSort("l5cn")}>
                   C/N₀{sortMark("l5cn")}
+                </button>
+              </th>
+              <th style={{ ...th, textAlign: "center", padding: "4px 6px" }}>
+                <button type="button" style={{ ...btnReset, textAlign: "center" }} onClick={() => onSort("l5tr")}>
+                  Tracking{sortMark("l5tr")}
                 </button>
               </th>
             </tr>
@@ -322,12 +322,12 @@ export function SVTrackingCard({ svs }: { svs: SVInfo[] }) {
                   <td style={tdNum}>{sv.azimuth_deg.toFixed(0)}</td>
                   <td style={{ ...td, paddingLeft: 10 }}>{sv.used_in_position ? "Used" : "Not used"}</td>
                   <td style={{ ...tdMono, paddingLeft: 10 }}>{sv.used_in_rtk ? "Yes" : "—"}</td>
-                  <td style={{ ...tdTrack, borderLeft: "1px solid var(--table-border)" }}>{dispTrack(sv.track_l1)}</td>
-                  <td style={tdNum}>{fmtL1Cn(sv)}</td>
-                  <td style={tdTrack}>{dispTrack(sv.track_l2)}</td>
+                  <td style={{ ...tdNum, borderLeft: "1px solid var(--table-border)" }}>{fmtL1Cn(sv)}</td>
+                  <td style={tdTrack}>{dispTrack(sv.track_l1)}</td>
                   <td style={tdNum}>{fmtL2Cn(sv)}</td>
-                  <td style={tdTrack}>{dispTrack(sv.track_l5)}</td>
+                  <td style={tdTrack}>{dispTrack(sv.track_l2)}</td>
                   <td style={tdNum}>{fmtL5Cn(sv)}</td>
+                  <td style={tdTrack}>{dispTrack(sv.track_l5)}</td>
                 </tr>
               );
             })}

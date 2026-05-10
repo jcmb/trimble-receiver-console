@@ -23,6 +23,9 @@ type RetSerialInfo struct {
 	PhysicalChannels    int    `json:"physical_channels,omitempty"`   // binary uint16
 	SimultaneousTrack   int    `json:"simultaneous_track,omitempty"`  // single byte
 	AntennaINIVersion   string `json:"antenna_ini_version,omitempty"`
+	// Extended antenna strings (ICD bytes 90–151 past LENGTH).
+	BaseLongAntSerial    string `json:"base_long_ant_serial,omitempty"`
+	BaseNGSAntDescriptor string `json:"base_ngs_ant_descriptor,omitempty"`
 }
 
 func trimASCII(b []byte) string {
@@ -66,6 +69,12 @@ func ParseRetSerialPayload(payload []byte) (RetSerialInfo, bool) {
 		info.UsableChannels = int(binary.BigEndian.Uint16(payload[148:150]))
 		info.PhysicalChannels = int(binary.BigEndian.Uint16(payload[150:152]))
 		info.SimultaneousTrack = int(payload[152])
+	}
+	if len(payload) >= 148 {
+		info.BaseLongAntSerial = asciiField(payload, 86, 31)
+		info.BaseNGSAntDescriptor = asciiField(payload, 117, 31)
+	} else if len(payload) >= 117 {
+		info.BaseLongAntSerial = asciiField(payload, 86, 31)
 	}
 	if len(payload) >= 158 {
 		info.AntennaINIVersion = asciiField(payload, 153, 5)
