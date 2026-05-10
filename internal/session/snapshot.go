@@ -21,9 +21,13 @@ type SVInfo struct {
 	System    int     `json:"system"` // 0 GPS, 1 SBAS, 2 GLO, 3 Gal, 4 QZSS, 5 BDS
 	Elevation float64 `json:"elevation_deg"`
 	Azimuth   float64 `json:"azimuth_deg"`
-	CN0       float64 `json:"cn0_db_hz"` // first freq, dB-Hz (doc: stored as dB*4 for some records; we normalize when known)
-	UsedInPos bool    `json:"used_in_position"`
-	UsedInRTK bool    `json:"used_in_rtk"`
+	CN0       float64  `json:"cn0_db_hz"` // L1 (first carrier); backward-compatible primary SNR
+	CN0L2     *float64 `json:"cn0_l2_db_hz,omitempty"`
+	CN0L56    *float64 `json:"cn0_l56_db_hz,omitempty"`
+	TrackL12  string   `json:"track_l12,omitempty"` // slash-separated signal codes for L1/L2 bucket
+	TrackL56  string   `json:"track_l56,omitempty"` // L5 / E5 / Alt bucket
+	UsedInPos bool     `json:"used_in_position"`
+	UsedInRTK bool     `json:"used_in_rtk"`
 }
 
 // ReceiverSnapshot is JSON-serialized to API/WebSocket clients.

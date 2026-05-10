@@ -166,10 +166,28 @@ func ParseAllSVDetailType34(payload []byte) (out []DetailSV, ok bool) {
 		return nil, false
 	}
 	n := int(payload[0])
+	if n == 0 {
+		return nil, true
+	}
+	dataLen := len(payload) - 1
+	stride := dataLen / n
+	if stride < 8 || dataLen != stride*n {
+		return nil, false
+	}
+	hasL2, has56 := false, false
+	switch stride {
+	case 8:
+		// legacy 8-byte SV rows (single SNR)
+	case 10:
+		hasL2, has56 = true, true
+	default:
+		return nil, false
+	}
+
 	ptr := 1
 	var res []DetailSV
 	for i := 0; i < n; i++ {
-		if ptr+9 > len(payload) {
+		if ptr+8 > len(payload) {
 			break
 		}
 		prn := int(payload[ptr])
@@ -179,22 +197,19 @@ func ParseAllSVDetailType34(payload []byte) (out []DetailSV, ok bool) {
 		el := float64(payload[ptr+4])
 		az := float64(binary.BigEndian.Uint16(payload[ptr+5 : ptr+7]))
 		snr1 := float64(payload[ptr+7]) / 4.0
-		ptr += 8
-		// optional snr2, snr3 if present
 		var snr2, snr3 float64
-		if ptr < len(payload) {
-			snr2 = float64(payload[ptr]) / 4.0
-			ptr++
+		if hasL2 && ptr+9 <= len(payload) {
+			snr2 = float64(payload[ptr+8]) / 4.0
 		}
-		if ptr < len(payload) {
-			snr3 = float64(payload[ptr]) / 4.0
-			ptr++
+		if has56 && ptr+10 <= len(payload) {
+			snr3 = float64(payload[ptr+9]) / 4.0
 		}
-		_ = snr2
-		_ = snr3
+		ptr += stride
 		res = append(res, DetailSV{
 			PRN: prn, System: sys, Flags1: f1, Flags2: f2,
-			Elevation: el, Azimuth: az, CN0: snr1,
+			Elevation: el, Azimuth: az,
+			CN0L1: snr1, CN0L2: snr2, CN0L56: snr3,
+			HasL2: hasL2, HasL56: has56,
 		})
 	}
 	return res, len(res) == n
@@ -207,7 +222,11 @@ type DetailSV struct {
 	Flags2    byte
 	Elevation float64
 	Azimuth   float64
-	CN0       float64
+	CN0L1     float64
+	CN0L2     float64
+	CN0L56    float64
+	HasL2     bool
+	HasL56    bool
 }
 
 func Flags1UsedInPos(f byte) bool { return f&0x40 != 0 }

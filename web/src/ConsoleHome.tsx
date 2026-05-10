@@ -8,7 +8,7 @@ import { SVTrackingCard } from "./SVTrackingCard";
 import { ConfigForm } from "./ConfigForm";
 import { ThemeToggle } from "./ThemeToggle";
 
-type Tab = "list" | "map" | "detail" | "configure";
+type Tab = "list" | "map" | "detail";
 
 function tabLabel(t: Tab): string {
   switch (t) {
@@ -18,8 +18,6 @@ function tabLabel(t: Tab): string {
       return "Map";
     case "detail":
       return "Detail";
-    case "configure":
-      return "Configure";
   }
 }
 
@@ -354,39 +352,21 @@ export default function ConsoleHome() {
                 ) : null}
               </div>
             </div>
-          </div>
-        )}
-
-        {tab === "configure" && (
-          <div className="panel" style={{ flex: 1, minHeight: 320 }}>
-            <h2 style={{ marginTop: 0 }}>Configuration</h2>
-            {!selected && <p className="muted">Select a receiver from the list or map.</p>}
-            {selected && groupId ? (
-              <ConfigForm groupId={groupId} receiverKey={keyOf(selected)} mode={selected.mode} />
-            ) : null}
+            <div className="panel" style={{ gridColumn: "1 / -1" }}>
+              <h2 style={{ marginTop: 0 }}>Configuration</h2>
+              {!selected && <p className="muted">Select a receiver from the list or map.</p>}
+              {selected && groupId ? (
+                <ConfigForm groupId={groupId} receiverKey={keyOf(selected)} mode={selected.mode} />
+              ) : null}
+            </div>
           </div>
         )}
       </main>
 
       <footer className="panel footer-tab-bar" style={{ margin: "0 12px 12px", flexShrink: 0 }}>
         <nav className="row" style={{ gap: 8, flexWrap: "wrap" }}>
-          {(["list", "map", "detail", "configure"] as Tab[]).map((t) => (
-            <button
-              key={t}
-              type="button"
-              onClick={() => setTab(t)}
-              className={`nav-tab${tab === t ? " active" : ""}`}
-              style={
-                t === "configure" && selected?.mode === "read_only"
-                  ? { opacity: 0.55 }
-                  : undefined
-              }
-              title={
-                t === "configure" && selected?.mode === "read_only"
-                  ? "Receiver session is read-only"
-                  : undefined
-              }
-            >
+          {(["list", "map", "detail"] as Tab[]).map((t) => (
+            <button key={t} type="button" onClick={() => setTab(t)} className={`nav-tab${tab === t ? " active" : ""}`}>
               {tabLabel(t)}
             </button>
           ))}
