@@ -118,10 +118,12 @@ func ApplyGSOFBuffer(snap *ReceiverSnapshot, gsofBuf []byte) {
 				detail48 = append(detail48, d...)
 			}
 		case 0x26:
-			if pt, net2, hasNet2, ok := gsof.ParsePositionType38(payload); ok {
-				snap.PositionType = pt
-				snap.HasPositionType = true
-				snap.PositionTypeLabel = PositionTypeLabel(pt)
+			if pt, net2, hasNet2, hasPT, ok := gsof.ParsePositionType38(payload); ok {
+				if hasPT {
+					snap.PositionType = pt
+					snap.HasPositionType = true
+					snap.PositionTypeLabel = PositionTypeLabel(pt)
+				}
 				if hasNet2 {
 					snap.XFillPresent = true
 					snap.XFillReady = net2&0x01 != 0

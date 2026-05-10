@@ -163,6 +163,55 @@ func TestParseRadioType57(t *testing.T) {
 	}
 }
 
+func TestParseLLHType2(t *testing.T) {
+	buf := make([]byte, 24)
+	binary.BigEndian.PutUint64(buf[0:8], math.Float64bits(0.71))
+	binary.BigEndian.PutUint64(buf[8:16], math.Float64bits(-1.234))
+	binary.BigEndian.PutUint64(buf[16:24], math.Float64bits(100.5))
+	lat, lon, h, ok := ParseLLHType2(buf)
+	if !ok || lat != 0.71 || lon != -1.234 || h != 100.5 {
+		t.Fatalf("%v %v %v ok=%v", lat, lon, h, ok)
+	}
+}
+
+func TestParsePositionType38_partialVsFull(t *testing.T) {
+	// 11-byte prefix (through NetworkFlags): no PositionFixType field.
+	var p []byte
+	tmp := make([]byte, 4)
+	binary.BigEndian.PutUint32(tmp, math.Float32bits(1.5))
+	p = append(p, tmp...)
+	p = append(p, 0x10, 0x20)
+	binary.BigEndian.PutUint32(tmp, math.Float32bits(3.25))
+	p = append(p, tmp...)
+	p = append(p, 0x30)
+	if len(p) != 11 {
+		t.Fatalf("len %d", len(p))
+	}
+	_, _, _, hasPT, ok := ParsePositionType38(p)
+	if !ok || hasPT {
+		t.Fatalf("partial should not report position type: hasPT=%v", hasPT)
+	}
+
+	full := append([]byte(nil), p...)
+	full = append(full, 0x31, 0x40)
+	binary.BigEndian.PutUint16(tmp[:2], 0x0506)
+	full = append(full, tmp[:2]...)
+	full = append(full, 0x07)
+	binary.BigEndian.PutUint32(tmp, 0x08090a0b)
+	full = append(full, tmp...)
+	full = append(full, 0x0c)
+	binary.BigEndian.PutUint32(tmp, math.Float32bits(9))
+	full = append(full, tmp...)
+	full = append(full, 0x0d)
+	if len(full) != 26 {
+		t.Fatalf("full len %d", len(full))
+	}
+	pt, _, _, hasPT2, ok2 := ParsePositionType38(full)
+	if !ok2 || !hasPT2 || pt != 0x0d {
+		t.Fatalf("pt=%d hasPT=%v ok=%v", pt, hasPT2, ok2)
+	}
+}
+
 func TestParseTangentPlaneENUType7(t *testing.T) {
 	buf := make([]byte, 24)
 	binary.BigEndian.PutUint64(buf[0:8], math.Float64bits(1.25))
