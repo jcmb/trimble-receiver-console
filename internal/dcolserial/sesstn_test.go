@@ -42,6 +42,35 @@ func TestParseRetSesstnIndividualSession(t *testing.T) {
 	}
 }
 
+func TestParseRetSesstnSessionSummaryUInt16Count(t *testing.T) {
+	buf := make([]byte, 3+2*5)
+	buf[0] = byte(IndSessionSummary)
+	binary.LittleEndian.PutUint16(buf[1:3], 2)
+	buf[3] = 10
+	copy(buf[4:8], "SE01")
+	buf[8] = 11
+	copy(buf[9:13], "SE02")
+
+	out, ok := ParseRetSesstnPayload(buf)
+	if !ok || out.SessionSummary == nil || len(out.SessionSummary.Items) != 2 {
+		t.Fatalf("ok=%v summary=%+v", ok, out.SessionSummary)
+	}
+}
+
+func TestParseRetSesstnSessionSummaryReservedCount(t *testing.T) {
+	buf := make([]byte, 3+1*5)
+	buf[0] = byte(IndSessionSummary)
+	buf[1] = 0
+	buf[2] = 1
+	buf[3] = 7
+	copy(buf[4:8], "ABCD")
+
+	out, ok := ParseRetSesstnPayload(buf)
+	if !ok || out.SessionSummary == nil || out.SessionSummary.Count != 1 || out.SessionSummary.Items[0].ID != "ABCD" {
+		t.Fatalf("ok=%v %+v", ok, out.SessionSummary)
+	}
+}
+
 func TestParseRetSesstnSessionSummary(t *testing.T) {
 	buf := make([]byte, 2+2*5)
 	buf[0] = byte(IndSessionSummary)

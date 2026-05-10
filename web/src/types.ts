@@ -121,12 +121,15 @@ export type DCOLRetSerial = {
   base_ngs_ant_descriptor?: string;
 };
 
-/** DCOL 43h / 44h — survey session summary from GETSESSTN at connect; nak when receiver sends DCOL NAK (15h). */
+/** DCOL 43h / 44h — GETSESSTN session + station summaries at connect; NAK flags per sub-query. */
 export type DCOLSurveySessions = {
   received_at: string;
-  nak?: boolean;
-  count: number;
-  items?: { index: number; id: string }[];
+  session_query_nak?: boolean;
+  station_query_nak?: boolean;
+  session_count: number;
+  session_items?: { index: number; id: string }[];
+  station_count: number;
+  station_items?: { index: number; id: string }[];
 };
 
 export type ReceiverSnapshot = {

@@ -186,7 +186,7 @@ func ParseRetSesstnPayload(payload []byte) (RetSesstn, bool) {
 		return out, true
 
 	case IndSessionSummary:
-		b, ok := parseSummary(payload, entrySessionSummary)
+		b, ok := parseSummaryTable(payload, entrySessionSummary)
 		if !ok {
 			return RetSesstn{}, false
 		}
@@ -194,7 +194,7 @@ func ParseRetSesstnPayload(payload []byte) (RetSesstn, bool) {
 		return out, true
 
 	case IndStationSummary:
-		b, ok := parseSummary(payload, entryStationSummary)
+		b, ok := parseSummaryTable(payload, entryStationSummary)
 		if !ok {
 			return RetSesstn{}, false
 		}
@@ -217,6 +217,82 @@ func parseSummary(payload []byte, entryLen int) (*SummaryBlock, bool) {
 	}
 	items := make([]SummaryEntry, 0, n)
 	off := 2
+	for i := 0; i < n; i++ {
+		idx := int(payload[off])
+		off++
+		idBytes := payload[off : off+entryLen-1]
+		off += entryLen - 1
+		items = append(items, SummaryEntry{Index: idx, ID: trimID(idBytes)})
+	}
+	return &SummaryBlock{Count: n, Items: items}, true
+}
+
+// parseSummaryTable tries classic survey summary layout first, then OEM variants where a zero
+// in the count byte does not mean "empty" (reserved byte or 16-bit count).
+func parseSummaryTable(payload []byte, entryLen int) (*SummaryBlock, bool) {
+	b, ok := parseSummary(payload, entryLen)
+	if ok && b.Count > 0 {
+		return b, true
+	}
+	if ok && len(payload) <= 2 {
+		return b, true
+	}
+	if b3, ok3 := parseSummaryAltCountAtByte2(payload, entryLen); ok3 && b3.Count > 0 {
+		return b3, true
+	}
+	if b2, ok2 := parseSummaryAltUInt16CountLE(payload, entryLen); ok2 && b2.Count > 0 {
+		return b2, true
+	}
+	if ok {
+		return b, true
+	}
+	if b3, ok3 := parseSummaryAltCountAtByte2(payload, entryLen); ok3 {
+		return b3, true
+	}
+	if b2, ok2 := parseSummaryAltUInt16CountLE(payload, entryLen); ok2 {
+		return b2, true
+	}
+	return nil, false
+}
+
+// parseSummaryAltUInt16CountLE handles layouts where the entry count is a little-endian
+// uint16 at bytes [1:3] and row data starts at byte 3 (seen on some OEM firmware).
+func parseSummaryAltUInt16CountLE(payload []byte, entryLen int) (*SummaryBlock, bool) {
+	if len(payload) < 3 {
+		return nil, false
+	}
+	n := int(binary.LittleEndian.Uint16(payload[1:3]))
+	if n > 512 {
+		return nil, false
+	}
+	need := 3 + n*entryLen
+	if len(payload) < need {
+		return nil, false
+	}
+	items := make([]SummaryEntry, 0, n)
+	off := 3
+	for i := 0; i < n; i++ {
+		idx := int(payload[off])
+		off++
+		idBytes := payload[off : off+entryLen-1]
+		off += entryLen - 1
+		items = append(items, SummaryEntry{Index: idx, ID: trimID(idBytes)})
+	}
+	return &SummaryBlock{Count: n, Items: items}, true
+}
+
+// parseSummaryAltCountAtByte2 handles a single reserved byte at [1] and count at [2].
+func parseSummaryAltCountAtByte2(payload []byte, entryLen int) (*SummaryBlock, bool) {
+	if len(payload) < 3 {
+		return nil, false
+	}
+	n := int(payload[2])
+	need := 3 + n*entryLen
+	if len(payload) < need || n < 0 {
+		return nil, false
+	}
+	items := make([]SummaryEntry, 0, n)
+	off := 3
 	for i := 0; i < n; i++ {
 		idx := int(payload[off])
 		off++
