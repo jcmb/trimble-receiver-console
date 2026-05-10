@@ -52,6 +52,42 @@ function formatNavFirmwareHundredths(raw: string | undefined): string {
   return (n / 100).toFixed(2);
 }
 
+/** Build http:// URL from Go TCP peer address (IPv4 host:port or [IPv6]:port). */
+function remoteAddrHttpHref(remoteAddr: string): string | null {
+  const a = remoteAddr.trim();
+  if (!a) return null;
+  if (a.startsWith("[")) {
+    const m = a.match(/^\[([^\]]+)\](?::(\d+))?$/);
+    if (m) {
+      const inner = m[1];
+      const port = m[2];
+      return port ? `http://[${inner}]:${port}/` : `http://[${inner}]/`;
+    }
+    return null;
+  }
+  const lastColon = a.lastIndexOf(":");
+  if (lastColon > 0) {
+    const tail = a.slice(lastColon + 1);
+    if (/^\d{1,5}$/.test(tail)) {
+      const host = a.slice(0, lastColon);
+      if (!host.includes(":")) {
+        return `http://${host}:${tail}/`;
+      }
+    }
+  }
+  return `http://${a}/`;
+}
+
+function RemoteAddrHttpLink({ addr, style }: { addr: string; style?: CSSProperties }) {
+  const href = remoteAddrHttpHref(addr);
+  if (!href) return <span style={style}>{addr}</span>;
+  return (
+    <a href={href} target="_blank" rel="noopener noreferrer" title={`Open ${href} in a new tab`} style={style}>
+      {addr}
+    </a>
+  );
+}
+
 type ListSortCol =
   | "serial"
   | "receiver_type"
@@ -456,7 +492,9 @@ export default function ConsoleHome() {
                       )}
                     </td>
                     <td>{r.mode}</td>
-                    <td className="muted">{r.remote_addr}</td>
+                    <td className="muted" style={{ fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace" }}>
+                      <RemoteAddrHttpLink addr={r.remote_addr} />
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -1028,8 +1066,8 @@ function StatusPanel({ r }: { r: ReceiverSnapshot }) {
         <span className="muted">
           Receiver type <strong>{listReceiverTypeDisplay(r)}</strong>
         </span>
-        <span className="muted" style={{ fontSize: 12 }}>
-          {r.remote_addr}
+        <span className="muted" style={{ fontSize: 12, fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace" }}>
+          <RemoteAddrHttpLink addr={r.remote_addr} />
         </span>
         <span className="row" style={{ gap: 8, marginLeft: "auto" }}>
           <StreamBadge r={r} />
@@ -1047,55 +1085,67 @@ function StatusPanel({ r }: { r: ReceiverSnapshot }) {
       {/* DCOL 06h / 07h at TCP connect */}
       <div className="status-card">
         <h3 className="status-card-title mixed-case">Receiver & antenna</h3>
+        <table style={{ width: "100%", borderCollapse: "collapse" }}>
+          <tbody>
+            <tr>
+              <td style={tdL}>TCP peer</td>
+              <td style={tdV}>
+                <RemoteAddrHttpLink addr={r.remote_addr} />
+              </td>
+            </tr>
+            {r.dcol_ret_serial && (
+              <>
+                <tr>
+                  <td style={tdL}>Receiver type</td>
+                  <td style={tdV}>{r.dcol_ret_serial.receiver_type?.trim() || "—"}</td>
+                </tr>
+                <tr>
+                  <td style={tdL}>Serial number</td>
+                  <td style={tdV}>{r.dcol_ret_serial.long_serial?.trim() || "—"}</td>
+                </tr>
+                {!r.dcol_ret_serial.long_serial?.trim() && (
+                  <tr>
+                    <td style={tdL}>Serial (8-char)</td>
+                    <td style={tdV}>{r.dcol_ret_serial.receiver_serial_short?.trim() || "—"}</td>
+                  </tr>
+                )}
+                <tr>
+                  <td style={tdL}>Firmware</td>
+                  <td style={tdV}>{formatNavFirmwareHundredths(r.dcol_ret_serial.nav_processor_version)}</td>
+                </tr>
+                <tr>
+                  <td style={tdL}>Antenna type</td>
+                  <td style={tdV}>{trimbleRetSerialAntennaLabel(r.dcol_ret_serial.antenna_type)}</td>
+                </tr>
+                <tr>
+                  <td style={tdL}>Antenna serial</td>
+                  <td style={tdV}>{r.dcol_ret_serial.antenna_serial?.trim() || "—"}</td>
+                </tr>
+                <tr>
+                  <td style={tdL}>Base long ant serial</td>
+                  <td style={tdV}>{r.dcol_ret_serial.base_long_ant_serial?.trim() || "—"}</td>
+                </tr>
+                <tr>
+                  <td style={tdL}>Base NGS ant descriptor</td>
+                  <td style={tdV}>{r.dcol_ret_serial.base_ngs_ant_descriptor?.trim() || "—"}</td>
+                </tr>
+                <tr>
+                  <td style={tdL}>Channels</td>
+                  <td style={tdV}>{channelsRetSerialSummary(r.dcol_ret_serial)}</td>
+                </tr>
+              </>
+            )}
+          </tbody>
+        </table>
         {!r.dcol_ret_serial && r.online && (
-          <p className="muted" style={{ margin: 0, fontSize: 13 }}>
+          <p className="muted" style={{ margin: "10px 0 0", fontSize: 13 }}>
             Waiting for RET SERIAL (07h)…
           </p>
         )}
-        {!r.dcol_ret_serial && !r.online && <p className="muted" style={{ margin: 0, fontSize: 13 }}>—</p>}
-        {r.dcol_ret_serial && (
-          <table style={{ width: "100%", borderCollapse: "collapse" }}>
-            <tbody>
-              <tr>
-                <td style={tdL}>Receiver type</td>
-                <td style={tdV}>{r.dcol_ret_serial.receiver_type?.trim() || "—"}</td>
-              </tr>
-              <tr>
-                <td style={tdL}>Serial number</td>
-                <td style={tdV}>{r.dcol_ret_serial.long_serial?.trim() || "—"}</td>
-              </tr>
-              {!r.dcol_ret_serial.long_serial?.trim() && (
-                <tr>
-                  <td style={tdL}>Serial (8-char)</td>
-                  <td style={tdV}>{r.dcol_ret_serial.receiver_serial_short?.trim() || "—"}</td>
-                </tr>
-              )}
-              <tr>
-                <td style={tdL}>Firmware</td>
-                <td style={tdV}>{formatNavFirmwareHundredths(r.dcol_ret_serial.nav_processor_version)}</td>
-              </tr>
-              <tr>
-                <td style={tdL}>Antenna type</td>
-                <td style={tdV}>{trimbleRetSerialAntennaLabel(r.dcol_ret_serial.antenna_type)}</td>
-              </tr>
-              <tr>
-                <td style={tdL}>Antenna serial</td>
-                <td style={tdV}>{r.dcol_ret_serial.antenna_serial?.trim() || "—"}</td>
-              </tr>
-              <tr>
-                <td style={tdL}>Base long ant serial</td>
-                <td style={tdV}>{r.dcol_ret_serial.base_long_ant_serial?.trim() || "—"}</td>
-              </tr>
-              <tr>
-                <td style={tdL}>Base NGS ant descriptor</td>
-                <td style={tdV}>{r.dcol_ret_serial.base_ngs_ant_descriptor?.trim() || "—"}</td>
-              </tr>
-              <tr>
-                <td style={tdL}>Channels</td>
-                <td style={tdV}>{channelsRetSerialSummary(r.dcol_ret_serial)}</td>
-              </tr>
-            </tbody>
-          </table>
+        {!r.dcol_ret_serial && !r.online && (
+          <p className="muted" style={{ margin: "10px 0 0", fontSize: 13 }}>
+            —
+          </p>
         )}
       </div>
 
