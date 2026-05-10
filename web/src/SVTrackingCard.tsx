@@ -183,6 +183,15 @@ export function SVTrackingCard({ svs }: { svs: SVInfo[] }) {
     fontSize: 12,
   };
 
+  /** Tracking codes — isolate from numeric C/N₀ columns so long labels do not visually bleed */
+  const tdTrack: CSSProperties = {
+    ...tdMono,
+    maxWidth: "7.5rem",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
+  };
+
   const groupTh: CSSProperties = {
     ...th,
     textAlign: "center",
@@ -202,7 +211,7 @@ export function SVTrackingCard({ svs }: { svs: SVInfo[] }) {
   return (
     <>
       <p style={{ fontSize: 12, color: "var(--app-muted)", margin: "0 0 12px", lineHeight: 1.4 }}>
-        GSOF record 34: one C/N₀ value per frequency column when the extended 10-byte SV row is present. Tracking codes
+        GSOF ALL SV detail (records 48 or 34): one C/N₀ value per frequency column when the extended 10-byte SV row is present. Tracking codes
         come from SV Flags2 (constellation-specific). The <strong>L5</strong> column includes Galileo E5/E6-class signals
         (E6 shares this column). Click a column header to sort.
       </p>
@@ -271,18 +280,13 @@ export function SVTrackingCard({ svs }: { svs: SVInfo[] }) {
             </tr>
             <tr>
               <th style={{ ...th, textAlign: "center", borderLeft: "1px solid var(--table-border)", padding: "4px 6px" }}>
-                <button type="button" style={{ ...btnReset, textAlign: "center" }} onClick={() => onSort("l1cn")}>
-                  C/N₀{sortMark("l1cn")}
-                </button>
-              </th>
-              <th style={{ ...th, textAlign: "center", padding: "4px 6px" }}>
                 <button type="button" style={{ ...btnReset, textAlign: "center" }} onClick={() => onSort("l1tr")}>
                   Tracking{sortMark("l1tr")}
                 </button>
               </th>
               <th style={{ ...th, textAlign: "center", padding: "4px 6px" }}>
-                <button type="button" style={{ ...btnReset, textAlign: "center" }} onClick={() => onSort("l2cn")}>
-                  C/N₀{sortMark("l2cn")}
+                <button type="button" style={{ ...btnReset, textAlign: "center" }} onClick={() => onSort("l1cn")}>
+                  C/N₀{sortMark("l1cn")}
                 </button>
               </th>
               <th style={{ ...th, textAlign: "center", padding: "4px 6px" }}>
@@ -291,13 +295,18 @@ export function SVTrackingCard({ svs }: { svs: SVInfo[] }) {
                 </button>
               </th>
               <th style={{ ...th, textAlign: "center", padding: "4px 6px" }}>
-                <button type="button" style={{ ...btnReset, textAlign: "center" }} onClick={() => onSort("l5cn")}>
-                  C/N₀{sortMark("l5cn")}
+                <button type="button" style={{ ...btnReset, textAlign: "center" }} onClick={() => onSort("l2cn")}>
+                  C/N₀{sortMark("l2cn")}
                 </button>
               </th>
               <th style={{ ...th, textAlign: "center", padding: "4px 6px" }}>
                 <button type="button" style={{ ...btnReset, textAlign: "center" }} onClick={() => onSort("l5tr")}>
                   Tracking{sortMark("l5tr")}
+                </button>
+              </th>
+              <th style={{ ...th, textAlign: "center", padding: "4px 6px" }}>
+                <button type="button" style={{ ...btnReset, textAlign: "center" }} onClick={() => onSort("l5cn")}>
+                  C/N₀{sortMark("l5cn")}
                 </button>
               </th>
             </tr>
@@ -313,12 +322,12 @@ export function SVTrackingCard({ svs }: { svs: SVInfo[] }) {
                   <td style={tdNum}>{sv.azimuth_deg.toFixed(0)}</td>
                   <td style={{ ...td, paddingLeft: 10 }}>{sv.used_in_position ? "Used" : "Not used"}</td>
                   <td style={{ ...tdMono, paddingLeft: 10 }}>{sv.used_in_rtk ? "Yes" : "—"}</td>
-                  <td style={{ ...tdNum, borderLeft: "1px solid var(--table-border)" }}>{fmtL1Cn(sv)}</td>
-                  <td style={tdMono}>{dispTrack(sv.track_l1)}</td>
+                  <td style={{ ...tdTrack, borderLeft: "1px solid var(--table-border)" }}>{dispTrack(sv.track_l1)}</td>
+                  <td style={tdNum}>{fmtL1Cn(sv)}</td>
+                  <td style={tdTrack}>{dispTrack(sv.track_l2)}</td>
                   <td style={tdNum}>{fmtL2Cn(sv)}</td>
-                  <td style={tdMono}>{dispTrack(sv.track_l2)}</td>
+                  <td style={tdTrack}>{dispTrack(sv.track_l5)}</td>
                   <td style={tdNum}>{fmtL5Cn(sv)}</td>
-                  <td style={tdMono}>{dispTrack(sv.track_l5)}</td>
                 </tr>
               );
             })}

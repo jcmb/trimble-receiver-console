@@ -12,7 +12,8 @@ import (
 // ApplyGSOFBuffer merges GSOF sub-records into snap.
 func ApplyGSOFBuffer(snap *ReceiverSnapshot, gsofBuf []byte) {
 	flat := dcol.FlattenGSOFBuffer(gsofBuf)
-	var detail []gsof.DetailSV
+	var detail48 []gsof.DetailSV
+	var detail34 []gsof.DetailSV
 	var brief []gsof.BriefSV
 
 	var utcT time.Time
@@ -96,7 +97,11 @@ func ApplyGSOFBuffer(snap *ReceiverSnapshot, gsofBuf []byte) {
 			}
 		case 0x22:
 			if d, ok := gsof.ParseAllSVDetailType34(payload); ok {
-				detail = d
+				detail34 = d
+			}
+		case 0x30:
+			if d, ok := gsof.ParseAllSVDetailType48(payload); ok {
+				detail48 = append(detail48, d...)
 			}
 		case 0x26:
 			if pt, net2, hasNet2, ok := gsof.ParsePositionType38(payload); ok {
@@ -135,8 +140,10 @@ func ApplyGSOFBuffer(snap *ReceiverSnapshot, gsofBuf []byte) {
 		snap.SolutionGPSMs = gpsMs
 	}
 
-	if len(detail) > 0 {
-		snap.SVs = detailToSVInfo(detail)
+	if len(detail48) > 0 {
+		snap.SVs = detailToSVInfo(detail48)
+	} else if len(detail34) > 0 {
+		snap.SVs = detailToSVInfo(detail34)
 	} else if len(brief) > 0 {
 		snap.SVs = briefToSVInfo(brief)
 	}

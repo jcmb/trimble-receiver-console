@@ -339,7 +339,7 @@ export default function ConsoleHome() {
                 {selected && selected.satellites?.length ? (
                   <SkyPlot svs={selected.satellites} />
                 ) : selected ? (
-                  <p className="muted">No SV geometry (enable GSOF All SV Detail, record 34).</p>
+                  <p className="muted">No SV geometry (enable GSOF ALL SV detail, record 48 or 34).</p>
                 ) : null}
               </div>
               <div className="panel">
@@ -348,7 +348,7 @@ export default function ConsoleHome() {
                 {selected && selected.satellites?.length ? (
                   <SVTrackingCard svs={selected.satellites} />
                 ) : selected ? (
-                  <p className="muted">No SV geometry (enable GSOF All SV Detail, record 34).</p>
+                  <p className="muted">No SV geometry (enable GSOF ALL SV detail, record 48 or 34).</p>
                 ) : null}
               </div>
             </div>
@@ -723,7 +723,7 @@ function StatusPanel({ r }: { r: ReceiverSnapshot }) {
             <thead>
               <tr>
                 <th style={th}></th>
-                <th style={th}>WGS84 (hover row for decimal + ECEF)</th>
+                <th style={th}>WGS84 (hover for decimal + ECEF)</th>
                 <th
                   style={{ ...th, textAlign: "right", paddingRight: 0 }}
                   title="1σ from GSOF sigma record 12: σ East, σ North, σ Up in meters"
@@ -824,7 +824,7 @@ function StatusPanel({ r }: { r: ReceiverSnapshot }) {
                   lineHeight: 1.35,
                 }}
               >
-                Kinematic velocity from GSOF record 8 — horizontal and vertical speed plus heading.
+                Velocity
               </caption>
               <thead>
                 <tr>

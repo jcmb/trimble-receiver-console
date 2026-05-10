@@ -6,6 +6,26 @@ import (
 	"testing"
 )
 
+func TestParseAllSVDetailType48(t *testing.T) {
+	// Header: version, page (1 of 1), 1 SV; then same 10-byte row as type 34
+	var b []byte
+	b = append(b, 1, 0x11, 1) // version 1, page 1/1, n=1
+	b = append(b, 5, 0, 0xC0, 0, 45)
+	az := uint16(90)
+	tmp := make([]byte, 2)
+	binary.BigEndian.PutUint16(tmp, az)
+	b = append(b, tmp...)
+	b = append(b, 40*4)
+	b = append(b, 0, 0)
+	out, ok := ParseAllSVDetailType48(b)
+	if !ok || len(out) != 1 {
+		t.Fatalf("parse: ok=%v len=%d", ok, len(out))
+	}
+	if out[0].PRN != 5 || out[0].Elevation != 45 || out[0].Azimuth != 90 {
+		t.Fatalf("%+v", out[0])
+	}
+}
+
 func TestParseAllSVDetailType34(t *testing.T) {
 	// One SV: PRN 5, GPS(0), flags, el=45, az=90 (BE), snr bytes
 	var b []byte

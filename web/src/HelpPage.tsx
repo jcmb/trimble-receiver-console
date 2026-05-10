@@ -44,10 +44,10 @@ export function HelpPage() {
           </tr>
           <tr>
             <td>
-              <code>34</code>
+              <code>48</code>
             </td>
-            <td>All SV detail</td>
-            <td>Sky plot, constellation counts, elevation/azimuth</td>
+            <td>Multiple-page ALL SV detail</td>
+            <td>Sky plot, constellation counts, elevation/azimuth (uses paging for large SV lists)</td>
           </tr>
         </tbody>
       </table>
@@ -142,11 +142,20 @@ export function HelpPage() {
         <tbody>
           <tr>
             <td>
+              <code>34</code>
+            </td>
+            <td>All SV detail (single-page)</td>
+            <td>
+              Secondary to <code>48</code>; same SV row layout when <code>48</code> is not used or not available
+            </td>
+          </tr>
+          <tr>
+            <td>
               <code>33</code>
             </td>
             <td>Brief all SV</td>
             <td>
-              Used if <code>34</code> is absent (no sky geometry)
+              Used when neither <code>48</code> nor <code>34</code> is present (no sky geometry)
             </td>
           </tr>
         </tbody>

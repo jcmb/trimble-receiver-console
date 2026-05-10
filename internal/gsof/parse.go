@@ -160,16 +160,30 @@ type BriefSV struct {
 	HasAzEl bool
 }
 
-// ParseAllSVDetailType34 — record 0x22.
+// ParseAllSVDetailType34 — record 0x22 (legacy single-page ALL SV detail).
 func ParseAllSVDetailType34(payload []byte) (out []DetailSV, ok bool) {
-	if len(payload) < 1 {
+	return parseAllSVDetailRows(payload, 0, 1)
+}
+
+// ParseAllSVDetailType48 — record 0x30: multiple-page ALL SV detail (recommended).
+// Payload: version (1), page info (1), SV count (1), then the same 8- or 10-byte SV rows as type 34.
+func ParseAllSVDetailType48(payload []byte) (out []DetailSV, ok bool) {
+	if len(payload) < 3 {
 		return nil, false
 	}
-	n := int(payload[0])
+	return parseAllSVDetailRows(payload, 2, 3)
+}
+
+// parseAllSVDetailRows parses SV rows; countIdx points at the SV count byte, dataStart at the first SV byte.
+func parseAllSVDetailRows(payload []byte, countIdx, dataStart int) (out []DetailSV, ok bool) {
+	if countIdx < 0 || dataStart < 0 || len(payload) <= countIdx || len(payload) < dataStart {
+		return nil, false
+	}
+	n := int(payload[countIdx])
 	if n == 0 {
 		return nil, true
 	}
-	dataLen := len(payload) - 1
+	dataLen := len(payload) - dataStart
 	stride := dataLen / n
 	if stride < 8 || dataLen != stride*n {
 		return nil, false
@@ -184,7 +198,7 @@ func ParseAllSVDetailType34(payload []byte) (out []DetailSV, ok bool) {
 		return nil, false
 	}
 
-	ptr := 1
+	ptr := dataStart
 	var res []DetailSV
 	for i := 0; i < n; i++ {
 		if ptr+8 > len(payload) {

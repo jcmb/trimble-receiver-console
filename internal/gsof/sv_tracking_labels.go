@@ -2,14 +2,15 @@ package gsof
 
 import "strings"
 
-// TrackingLabelsL1L2L5 splits SV Flags2 (GSOF record 34) into slash-separated labels per frequency
+// TrackingLabelsL1L2L5 splits SV Flags2 (GSOF ALL SV detail: records 34 or 48) into slash-separated labels per frequency
 // column: L1, L2, and L5.
 //
 // GPS, SBAS, GLONASS — Trimble SV Flags2:
-//   - Bit 0 clear → L1 tracking is C/A; bit 0 set → L1 is P (not C/A).
-//   - Bit 1 clear → L2 tracking is C/A; bit 1 set → L2 is P (not C/A).
+//   - Bit 0 clear → L1 C/A; bit 0 set → L1 P (GPS/SBAS doc: P on L1).
+//   - GPS/SBAS L2: bit 2 set → L2 CS (L2 civil); else bit 1 set → P; else C/A.
+//   - GLONASS L2: same C/A vs P on bit 1 only (no separate CS flag in our map).
 //   - GLONASS: bits 3–4 are not tracking-mode related (ignored here).
-//   - GPS/SBAS L5: bit 3 set → L5; bit 2 set → append L2CS on L2 (supplementary to C/A vs P).
+//   - GPS/SBAS L5: bit 3 set → L5.
 //
 // Other constellations use their own bit maps (Galileo E1/E5…, QZSS, BeiDou).
 func TrackingLabelsL1L2L5(system int, flags2 byte) (l1, l2, l5 string) {
@@ -25,29 +26,28 @@ func trackingPartsL1L2L5(system int, f byte) (l1, l2, l5 []string) {
 	switch n {
 	case 0, 1: // GPS, SBAS
 		if f&0x01 == 0 {
-			l1 = append(l1, "CA")
+			l1 = append(l1, "C/A")
 		} else {
 			l1 = append(l1, "P")
 		}
-		if f&0x02 == 0 {
-			l2 = append(l2, "CA")
-		} else {
-			l2 = append(l2, "P")
-		}
 		if f&0x04 != 0 {
-			l2 = append(l2, "L2CS")
+			l2 = append(l2, "CS")
+		} else if f&0x02 != 0 {
+			l2 = append(l2, "P")
+		} else {
+			l2 = append(l2, "C/A")
 		}
 		if f&0x08 != 0 {
 			l5 = append(l5, "L5")
 		}
 	case 2: // GLONASS — same C/A vs P on bits 0–1 as GPS; bits 3–4 are not tracking-mode flags
 		if f&0x01 == 0 {
-			l1 = append(l1, "CA")
+			l1 = append(l1, "C/A")
 		} else {
 			l1 = append(l1, "P")
 		}
 		if f&0x02 == 0 {
-			l2 = append(l2, "CA")
+			l2 = append(l2, "C/A")
 		} else {
 			l2 = append(l2, "P")
 		}

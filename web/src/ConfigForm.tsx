@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 const emptySlot = { enabled: false, format: "RTCMv3", host: "", port: 2101, mount: "" };
 
@@ -46,6 +46,11 @@ export function ConfigForm({
 
   const readOnly = mode === "read_only";
 
+  useEffect(() => {
+    if (role === "rover" && tab === "base") setTab("general");
+    if (role === "base" && tab === "rover") setTab("general");
+  }, [role, tab]);
+
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     if (readOnly) return;
@@ -62,13 +67,14 @@ export function ConfigForm({
     if (iono !== null) (body.advanced as Record<string, unknown>)["iono_guard"] = iono;
     if (elev !== "") (body.advanced as Record<string, number>)["elevation_mask_deg"] = parseFloat(elev);
 
+    body["outputs"] = {
+      internal_radio: outIR,
+      serial: outSer,
+      local_ntrip: outNt,
+    };
+
     if (role === "base") {
       body["sync_low_latency"] = syncLow;
-      body["outputs"] = {
-        internal_radio: outIR,
-        serial: outSer,
-        local_ntrip: outNt,
-      };
       const lat = (parseFloat(refLatDeg) * Math.PI) / 180;
       const lon = (parseFloat(refLonDeg) * Math.PI) / 180;
       body["base"] = {
@@ -105,16 +111,27 @@ export function ConfigForm({
         </p>
       )}
       <div className={`row config-tab-strip${readOnly ? " config-tab-strip-readonly" : ""}`} style={{ flexWrap: "wrap", gap: 6 }}>
-        {TABS.map((t) => (
-          <button
-            key={t.id}
-            type="button"
-            onClick={() => setTab(t.id)}
-            className={`nav-tab${tab === t.id ? " active" : ""}`}
-          >
-            {t.label}
-          </button>
-        ))}
+        {TABS.map((t) => {
+          const tabConflict =
+            (t.id === "base" && role === "rover") || (t.id === "rover" && role === "base");
+          const title = tabConflict
+            ? t.id === "base"
+              ? "Not available while role is Rover"
+              : "Not available while role is Base"
+            : undefined;
+          return (
+            <button
+              key={t.id}
+              type="button"
+              title={title}
+              disabled={tabConflict}
+              onClick={() => setTab(t.id)}
+              className={`nav-tab${tab === t.id ? " active" : ""}`}
+            >
+              {t.label}
+            </button>
+          );
+        })}
       </div>
 
       {tab === "general" && (
@@ -138,49 +155,53 @@ export function ConfigForm({
 
       {tab === "radio" && (
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          {role !== "base" && (
-            <p className="muted" style={{ margin: 0 }}>
-              Switch role to <strong>Base</strong> to edit radio and correction outputs.
-            </p>
-          )}
+          <p className="muted" style={{ margin: 0, fontSize: 12, lineHeight: 1.45 }}>
+            {role === "rover" ? (
+              <>
+                Radio and correction paths apply on the <strong>receive (Rx)</strong> side when this receiver is a rover.
+              </>
+            ) : (
+              <>
+                Radio and correction outputs apply on the <strong>transmit (Tx)</strong> side when this receiver is a base.
+              </>
+            )}
+          </p>
+          <label>
+            <input type="checkbox" checked={outIR} disabled={readOnly} onChange={(e) => setOutIR(e.target.checked)} />{" "}
+            Internal radio
+          </label>
+          <label>
+            <input type="checkbox" checked={outSer} disabled={readOnly} onChange={(e) => setOutSer(e.target.checked)} />{" "}
+            Serial
+          </label>
+          <label>
+            <input type="checkbox" checked={outNt} disabled={readOnly} onChange={(e) => setOutNt(e.target.checked)} />{" "}
+            Local NTRIP
+          </label>
           {role === "base" && (
-            <>
+            <div className="row" style={{ marginTop: 8, flexWrap: "wrap", gap: 12 }}>
+              <span className="muted">Sync / low latency (Tx)</span>
               <label>
-                <input type="checkbox" checked={outIR} disabled={readOnly} onChange={(e) => setOutIR(e.target.checked)} />{" "}
-                Internal radio
+                <input
+                  type="radio"
+                  name="sl"
+                  disabled={readOnly}
+                  checked={syncLow === "sync"}
+                  onChange={() => setSyncLow("sync")}
+                />{" "}
+                Sync
               </label>
               <label>
-                <input type="checkbox" checked={outSer} disabled={readOnly} onChange={(e) => setOutSer(e.target.checked)} />{" "}
-                Serial
+                <input
+                  type="radio"
+                  name="sl"
+                  disabled={readOnly}
+                  checked={syncLow === "low_latency"}
+                  onChange={() => setSyncLow("low_latency")}
+                />{" "}
+                Low latency
               </label>
-              <label>
-                <input type="checkbox" checked={outNt} disabled={readOnly} onChange={(e) => setOutNt(e.target.checked)} />{" "}
-                Local NTRIP
-              </label>
-              <div className="row" style={{ marginTop: 8, flexWrap: "wrap", gap: 12 }}>
-                <span className="muted">Sync / low latency</span>
-                <label>
-                  <input
-                    type="radio"
-                    name="sl"
-                    disabled={readOnly}
-                    checked={syncLow === "sync"}
-                    onChange={() => setSyncLow("sync")}
-                  />{" "}
-                  Sync
-                </label>
-                <label>
-                  <input
-                    type="radio"
-                    name="sl"
-                    disabled={readOnly}
-                    checked={syncLow === "low_latency"}
-                    onChange={() => setSyncLow("low_latency")}
-                  />{" "}
-                  Low latency
-                </label>
-              </div>
-            </>
+            </div>
           )}
         </div>
       )}
@@ -222,8 +243,8 @@ export function ConfigForm({
 
       {tab === "rover" && (
         <p className="muted" style={{ margin: 0 }}>
-          Rover mode uses the general role setting and IBSS / radio tabs for corrections. Extended rover DCOL options can be
-          added once byte layouts are wired in the encoder.
+          Rover-specific DCOL options can be added once byte layouts are wired in the encoder. Use <strong>Radio</strong> for
+          Rx-path correction inputs and <strong>IBSS</strong> for NTRIP.
         </p>
       )}
 

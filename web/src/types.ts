@@ -6,7 +6,7 @@ export type SVInfo = {
   /** L1 (primary) C/N₀, dB-Hz */
   cn0_db_hz: number;
   cn0_l2_db_hz?: number;
-  /** Third SNR byte (GSOF 34) — shown in the L5 column; Galileo E6 tracking appears there too. */
+  /** Third SNR byte (GSOF 48/34) — shown in the L5 column; Galileo E6 tracking appears there too. */
   cn0_l56_db_hz?: number;
   track_l1?: string;
   track_l2?: string;
