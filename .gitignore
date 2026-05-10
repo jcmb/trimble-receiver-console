@@ -23,7 +23,9 @@ go.work.sum
 
 # env file
 .env
+
+# macOS
 .DS_Store
-.DS_Store
-cmd/.DS_Store
-web/.DS_Store
+
+# Built server binary and cross-compile outputs
+bin/
