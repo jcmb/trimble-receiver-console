@@ -13,7 +13,7 @@ const webUiVersion =
 
 export default defineConfig({
   plugins: [react()],
-  base: "./",
+  base: "/",
   define: {
     __WEB_UI_VERSION__: JSON.stringify(webUiVersion),
   },
@@ -23,7 +23,7 @@ export default defineConfig({
   },
   server: {
     proxy: {
-      "/api": "http://127.0.0.1:8081",
+      "/api": "http://127.0.0.1:7002",
     },
   },
 });

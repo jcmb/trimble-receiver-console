@@ -1,4 +1,4 @@
-import { Fragment, useCallback, useEffect, useMemo, useState, type CSSProperties } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { Link } from "react-router-dom";
 import type {
   DCOLRetSerial,
@@ -15,6 +15,9 @@ import { SVTrackingCard } from "./SVTrackingCard";
 import { ConfigForm } from "./ConfigForm";
 import { ThemeToggle } from "./ThemeToggle";
 import { trimbleRetSerialAntennaLabel } from "./trimbleAntennaLabels";
+import { displayReceiverLabel, receiverKey, receiverSortKey } from "./receiverIdentity";
+import { svHasAzEl } from "./svSkyShared";
+import { MetricGraphLabel, type MetricGraphContext } from "./MetricGraphLabel";
 
 type Tab = "list" | "map" | "detail";
 
@@ -66,22 +69,12 @@ type ListSortCol =
   | "remote";
 
 function sortKeySerial(r: ReceiverSnapshot): string {
-  const long = r.dcol_ret_serial?.long_serial?.trim();
-  if (long) return long.toLowerCase();
-  const short = r.dcol_ret_serial?.receiver_serial_short?.trim();
-  if (short) return short.toLowerCase();
-  const s = r.serial?.trim();
-  if (s) return s.toLowerCase();
-  return `anon:${r.remote_addr}`.toLowerCase();
+  return receiverSortKey(r);
 }
 
-/** Prefer RET SERIAL long serial (DCOL 07h); matches sort order. */
+/** Prefer RET SERIAL long serial (DCOL 07h); else IP:port for outbound / anonymous sessions. */
 function displaySerial(r: ReceiverSnapshot): string {
-  const long = r.dcol_ret_serial?.long_serial?.trim();
-  if (long) return long;
-  const short = r.dcol_ret_serial?.receiver_serial_short?.trim();
-  if (short) return short;
-  return r.serial?.trim() || "—";
+  return displayReceiverLabel(r);
 }
 
 function listReceiverTypeDisplay(r: ReceiverSnapshot): string {
@@ -157,8 +150,32 @@ function ReceiverListTh({
   );
 }
 
+function groupIngressLabel(g: GroupInfo): string {
+  const parts: string[] = [];
+  if (g.tcp_listen?.trim()) {
+    parts.push(`listen ${g.tcp_listen}`);
+  }
+  if (g.gsof_connect?.length) {
+    parts.push(`outbound ${g.gsof_connect.join(", ")}`);
+  }
+  if (parts.length === 0) {
+    return "no ingress configured";
+  }
+  return parts.join(" · ");
+}
+
+function pickDefaultGroupId(groups: GroupInfo[], suggested?: string | null): string | null {
+  if (groups.length === 0) return null;
+  if (suggested && groups.some((g) => g.id === suggested)) return suggested;
+  const withOutbound = groups.filter((g) => (g.gsof_connect?.length ?? 0) > 0);
+  if (withOutbound.length >= 1) return withOutbound[0]!.id;
+  if (groups.length === 1) return groups[0]!.id;
+  return null;
+}
+
 export default function ConsoleHome() {
   const [groups, setGroups] = useState<GroupInfo[]>([]);
+  const [suggestedGroupId, setSuggestedGroupId] = useState<string | null>(null);
   const [groupId, setGroupId] = useState<string | null>(() => localStorage.getItem("trimble_group_id"));
   const [receivers, setReceivers] = useState<ReceiverSnapshot[]>([]);
   const [consoleVersion, setConsoleVersion] = useState("trimble-receiver-console version dev");
@@ -169,6 +186,7 @@ export default function ConsoleHome() {
   const [sel, setSel] = useState<string | null>(null);
   const [listSortCol, setListSortCol] = useState<ListSortCol>("serial");
   const [listSortAsc, setListSortAsc] = useState(true);
+  const appliedSuggestedGroup = useRef(false);
 
   useEffect(() => {
     fetch("/api/config")
@@ -176,6 +194,9 @@ export default function ConsoleHome() {
       .then((j) => {
         if (j.map_tile_url) setMapTileUrl(j.map_tile_url);
         if (Array.isArray(j.groups)) setGroups(j.groups);
+        if (typeof j.suggested_group_id === "string" && j.suggested_group_id) {
+          setSuggestedGroupId(j.suggested_group_id);
+        }
         if (typeof j.console_version === "string" && j.console_version) setConsoleVersion(j.console_version);
       })
       .catch(() => {});
@@ -188,11 +209,28 @@ export default function ConsoleHome() {
 
   useEffect(() => {
     if (groups.length === 0) return;
-    if (groupId && !groups.some((g) => g.id === groupId)) {
+    if (
+      !appliedSuggestedGroup.current &&
+      suggestedGroupId &&
+      groups.some((g) => g.id === suggestedGroupId) &&
+      groupId !== suggestedGroupId
+    ) {
+      appliedSuggestedGroup.current = true;
+      setGroupId(suggestedGroupId);
+      setSel(null);
+      return;
+    }
+    const valid = groupId != null && groups.some((g) => g.id === groupId);
+    if (valid) return;
+    const pick = pickDefaultGroupId(groups, suggestedGroupId);
+    if (pick) {
+      setGroupId(pick);
+      setSel(null);
+    } else {
       setGroupId(null);
       setSel(null);
     }
-  }, [groups, groupId]);
+  }, [groups, groupId, suggestedGroupId]);
 
   useEffect(() => {
     if (!groupId) {
@@ -245,6 +283,9 @@ export default function ConsoleHome() {
   }, [pickFirst]);
 
   const selectedGroup = groups.find((g) => g.id === groupId);
+  const outboundOtherGroups = groups.filter(
+    (g) => g.id !== groupId && (g.gsof_connect?.length ?? 0) > 0
+  );
 
   if (groups.length === 0) {
     return (
@@ -298,7 +339,7 @@ export default function ConsoleHome() {
               <option value="">—</option>
               {groups.map((g) => (
                 <option key={g.id} value={g.id}>
-                  {g.name} ({g.id}) — TCP {g.tcp_listen}
+                  {g.name} ({g.id}) — {groupIngressLabel(g)}
                 </option>
               ))}
             </select>
@@ -331,7 +372,7 @@ export default function ConsoleHome() {
         <div>
           <strong>Trimble receiver console</strong>
           <span className="muted" style={{ marginLeft: 12 }}>
-            {selectedGroup ? `${selectedGroup.name} · TCP ${selectedGroup.tcp_listen}` : groupId}
+            {selectedGroup ? `${selectedGroup.name} · ${groupIngressLabel(selectedGroup)}` : groupId}
           </span>
         </div>
         <div className="row">
@@ -369,6 +410,7 @@ export default function ConsoleHome() {
       </div>
 
       <main
+        className={tab === "map" ? "console-main console-main--map-fill" : "console-main"}
         style={{
           flex: 1,
           minHeight: 0,
@@ -376,7 +418,7 @@ export default function ConsoleHome() {
           display: "flex",
           flexDirection: "column",
           gap: 12,
-          overflow: "auto",
+          overflow: tab === "map" ? "hidden" : "auto",
         }}
       >
         {tab === "list" && (
@@ -426,7 +468,9 @@ export default function ConsoleHome() {
                       {listFirmwareDisplay(r)}
                     </td>
                     <td style={{ fontSize: 13 }}>
-                      {r.has_position_type ? `${r.position_type_label} (${r.position_type})` : "—"}
+                      <span className="row" style={{ gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+                        {r.has_position_type ? `${r.position_type_label} (${r.position_type})` : "—"}
+                      </span>
                     </td>
                     <td className="muted" style={{ fontSize: 13, whiteSpace: "nowrap" }}>
                       {r.has_power_logging && r.battery_percent != null
@@ -476,22 +520,44 @@ export default function ConsoleHome() {
               </tbody>
             </table>
             {receivers.length === 0 && (
-              <p className="muted">No receivers yet for this group (or all aged out after 7 days offline).</p>
+              <div className="muted">
+                <p>No receivers yet for this group (or all aged out after 7 days offline).</p>
+                {outboundOtherGroups.length > 0 && (
+                  <p>
+                    Outbound GSOF is configured on{" "}
+                    {outboundOtherGroups.map((g) => `${g.name} (${g.id})`).join(", ")} — switch group in the
+                    header.
+                  </p>
+                )}
+                {selectedGroup && (selectedGroup.gsof_connect?.length ?? 0) > 0 && receivers.length === 0 && (
+                  <p>
+                    This group dials {selectedGroup.gsof_connect!.join(", ")}. If stderr shows GSOF summaries but
+                    the list is empty, reload the page or confirm the Group dropdown matches the server log
+                    group_id.
+                  </p>
+                )}
+              </div>
             )}
           </div>
         )}
 
         {tab === "map" && (
-          <div className="panel" style={{ flex: 1, minHeight: 420 }}>
-            <h2 style={{ marginTop: 0 }}>Map</h2>
-            <ReceiverMap
-              receivers={receivers}
-              tileUrl={mapTileUrl}
-              onSelect={(k) => {
-                setSel(k);
-                setTab("detail");
-              }}
-            />
+          <div className="panel console-map-panel">
+            <h2 style={{ marginTop: 0, flexShrink: 0 }}>Map</h2>
+            <p className="muted" style={{ margin: "0 0 4px", fontSize: 12, flexShrink: 0 }}>
+              Hover a marker for fix, DOP, and SV counts. Configure alternative tiles (including satellite imagery) via{" "}
+              <code>map_tile_url</code> — see Help.
+            </p>
+            <div className="console-map-frame">
+              <ReceiverMap
+                receivers={receivers}
+                tileUrl={mapTileUrl}
+                onSelect={(k) => {
+                  setSel(k);
+                  setTab("detail");
+                }}
+              />
+            </div>
           </div>
         )}
 
@@ -500,7 +566,7 @@ export default function ConsoleHome() {
             <div className="panel console-detail-status">
               <h2 style={{ marginTop: 0 }}>Status</h2>
               {!selected && <p className="muted">Select a receiver from the list or map.</p>}
-              {selected && <StatusPanel r={selected} />}
+              {selected && <StatusPanel r={selected} groupId={groupId ?? ""} />}
             </div>
             <div className="panel console-detail-config">
               <h2 style={{ marginTop: 0 }}>Configuration</h2>
@@ -509,22 +575,27 @@ export default function ConsoleHome() {
                 <ConfigForm groupId={groupId} receiverKey={keyOf(selected)} mode={selected.mode} />
               ) : null}
             </div>
-            <div className="panel console-detail-sky">
-              <h2 style={{ marginTop: 0 }}>Sky plot</h2>
-              {!selected && <p className="muted">Select a receiver from the list or map.</p>}
-              {selected && selected.satellites?.length ? (
-                <SkyPlot svs={selected.satellites} />
-              ) : selected ? (
-                <p className="muted">No SV geometry (enable GSOF ALL SV detail, record 48 or 34).</p>
-              ) : null}
-            </div>
             <div className="panel console-detail-sv">
               <h2 style={{ marginTop: 0 }}>SV tracking</h2>
               {!selected && <p className="muted">Select a receiver from the list or map.</p>}
               {selected && selected.satellites?.length ? (
                 <SVTrackingCard svs={selected.satellites} />
               ) : selected ? (
-                <p className="muted">No SV geometry (enable GSOF ALL SV detail, record 48 or 34).</p>
+                <p className="muted">No SV data (enable GSOF SV output on the receiver).</p>
+              ) : null}
+            </div>
+            <div className="panel console-detail-sky">
+              <h2 style={{ marginTop: 0 }}>Sky plot</h2>
+              {!selected && <p className="muted">Select a receiver from the list or map.</p>}
+              {selected && selected.satellites?.some(svHasAzEl) ? (
+                <SkyPlot svs={selected.satellites} />
+              ) : selected && selected.satellites?.length ? (
+                <p className="muted">
+                  Brief SV only (GSOF 0x21) — no elevation/azimuth for sky plot. Enable ALL SV detail (record 48
+                  or 34) for geometry.
+                </p>
+              ) : selected ? (
+                <p className="muted">No SV data (enable GSOF SV output on the receiver).</p>
               ) : null}
             </div>
           </div>
@@ -539,7 +610,7 @@ export default function ConsoleHome() {
 }
 
 function keyOf(r: ReceiverSnapshot): string {
-  return r.serial || `anon:${r.remote_addr}`;
+  return receiverKey(r);
 }
 
 /** DCOL 07h nav processor version (same presentation as detail Status panel). */
@@ -699,7 +770,13 @@ function channelsRetSerialSummary(rs: DCOLRetSerial): string {
   return parts.length > 0 ? parts.join(" · ") : "—";
 }
 
-function VectorCard({ vector }: { vector?: VectorSnapshot }) {
+function VectorCard({
+  vector,
+  graph,
+}: {
+  vector?: VectorSnapshot;
+  graph: MetricGraphContext;
+}) {
   if (!vector?.tangent_plane && !vector?.diagnostics) return null;
   const tp = vector.tangent_plane;
   const d = vector.diagnostics;
@@ -758,13 +835,21 @@ function VectorCard({ vector }: { vector?: VectorSnapshot }) {
               <td style={tdV}>{d.reference_station_info_received ? "Received" : "—"}</td>
             </tr>
             <tr>
-              <td style={tdL}>Link integrity</td>
+              <td style={tdL}>
+                <MetricGraphLabel panel="vector" {...graph}>
+                  Link integrity
+                </MetricGraphLabel>
+              </td>
               <td style={tdV}>
                 {d.link_integrity_pct != null ? `${d.link_integrity_pct.toFixed(1)}%` : "—"}
               </td>
             </tr>
             <tr>
-              <td style={tdL}>Common L1 / L2 SVs</td>
+              <td style={tdL}>
+                <MetricGraphLabel panel="vector" {...graph}>
+                  Common L1 / L2 SVs
+                </MetricGraphLabel>
+              </td>
               <td style={tdV}>
                 {(d.common_l1_svs ?? "—") + " / " + (d.common_l2_svs ?? "—")}
               </td>
@@ -776,11 +861,19 @@ function VectorCard({ vector }: { vector?: VectorSnapshot }) {
               </td>
             </tr>
             <tr>
-              <td style={tdL}>Diff SVs in use</td>
+              <td style={tdL}>
+                <MetricGraphLabel panel="vector" {...graph}>
+                  Diff SVs in use
+                </MetricGraphLabel>
+              </td>
               <td style={tdV}>{d.diff_svs_in_use ?? "—"}</td>
             </tr>
             <tr>
-              <td style={tdL}>RTK position age</td>
+              <td style={tdL}>
+                <MetricGraphLabel panel="vector" {...graph}>
+                  RTK position age
+                </MetricGraphLabel>
+              </td>
               <td style={tdV}>
                 {d.rtk_position_age != null ? `${d.rtk_position_age.toFixed(2)} s` : "—"}
               </td>
@@ -981,11 +1074,22 @@ function streamVisual(r: ReceiverSnapshot): { cls: string; text: string; title: 
   return { cls: "stream-stale", text: "GSOF stale", title: `Last GSOF ${Math.round(age / 1000)}s ago` };
 }
 
-function StatusPanel({ r }: { r: ReceiverSnapshot }) {
+function StatusPanel({
+  r,
+  groupId,
+}: {
+  r: ReceiverSnapshot;
+  groupId: string;
+}) {
   const lat = r.has_llh ? (r.lat_rad * 180) / Math.PI : null;
   const lon = r.has_llh ? (r.lon_rad * 180) / Math.PI : null;
   const hoverLLH = r.has_llh ? positionHoverText(r.lat_rad, r.lon_rad, r.height_m) : undefined;
   const svUsedTotal = r.satellites?.filter((s) => s.used_in_position).length ?? 0;
+  const graph: MetricGraphContext = {
+    groupId,
+    receiverKey: keyOf(r),
+    receiverLabel: displayReceiverLabel(r),
+  };
 
   const th: CSSProperties = {
     textAlign: "left",
@@ -1162,7 +1266,9 @@ function StatusPanel({ r }: { r: ReceiverSnapshot }) {
                   style={{ ...th, textAlign: "right", paddingRight: 0 }}
                   title="1σ from GSOF sigma record 12: σ East, σ North, σ Up in meters"
                 >
-                  σ (m)
+                  <MetricGraphLabel panel="sigma" {...graph} style={{ font: "inherit", color: "inherit" }}>
+                    σ (m)
+                  </MetricGraphLabel>
                 </th>
               </tr>
             </thead>
@@ -1171,21 +1277,52 @@ function StatusPanel({ r }: { r: ReceiverSnapshot }) {
                 <td style={tdL}>Lat</td>
                 <td style={tdV}>{toDMS(lat, "lat")}</td>
                 <td style={tdS} title={hoverLLH}>
-                  {r.has_sigma ? `σN ${r.sigma_north_m.toFixed(3)}` : "—"}
+                  {r.has_sigma ? (
+                    <>
+                      <MetricGraphLabel panel="sigma" {...graph}>
+                        σN
+                      </MetricGraphLabel>{" "}
+                      {r.sigma_north_m.toFixed(3)}
+                    </>
+                  ) : (
+                    "—"
+                  )}
                 </td>
               </tr>
               <tr title={hoverLLH}>
                 <td style={tdL}>Lon</td>
                 <td style={tdV}>{toDMS(lon, "lon")}</td>
                 <td style={tdS} title={hoverLLH}>
-                  {r.has_sigma ? `σE ${r.sigma_east_m.toFixed(3)}` : "—"}
+                  {r.has_sigma ? (
+                    <>
+                      <MetricGraphLabel panel="sigma" {...graph}>
+                        σE
+                      </MetricGraphLabel>{" "}
+                      {r.sigma_east_m.toFixed(3)}
+                    </>
+                  ) : (
+                    "—"
+                  )}
                 </td>
               </tr>
               <tr title={hoverLLH}>
-                <td style={tdL}>H</td>
+                <td style={tdL}>
+                  <MetricGraphLabel panel="llh" {...graph} disabled={!r.has_llh}>
+                    H
+                  </MetricGraphLabel>
+                </td>
                 <td style={tdV}>{r.height_m.toFixed(3)} m ellipsoidal</td>
                 <td style={tdS} title={hoverLLH}>
-                  {r.has_sigma ? `σU ${r.sigma_up_m.toFixed(3)}` : "—"}
+                  {r.has_sigma ? (
+                    <>
+                      <MetricGraphLabel panel="sigma" {...graph}>
+                        σU
+                      </MetricGraphLabel>{" "}
+                      {r.sigma_up_m.toFixed(3)}
+                    </>
+                  ) : (
+                    "—"
+                  )}
                 </td>
               </tr>
             </tbody>
@@ -1206,13 +1343,21 @@ function StatusPanel({ r }: { r: ReceiverSnapshot }) {
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
             <tbody>
               <tr>
-                <td style={tdL}>Fix type</td>
+                <td style={tdL}>
+                  <MetricGraphLabel panel="fixType" {...graph} disabled={!r.has_position_type}>
+                    Fix type
+                  </MetricGraphLabel>
+                </td>
                 <td style={tdV}>
                   {r.has_position_type ? `${r.position_type_label} (${r.position_type})` : "—"}
                 </td>
               </tr>
               <tr>
-                <td style={tdL}>RMS</td>
+                <td style={tdL}>
+                  <MetricGraphLabel panel="sigma" {...graph} disabled={!r.has_sigma}>
+                    RMS
+                  </MetricGraphLabel>
+                </td>
                 <td style={tdV}>{r.has_sigma ? `${r.position_rms_m.toFixed(3)} m` : "—"}</td>
               </tr>
               <tr>
@@ -1228,10 +1373,26 @@ function StatusPanel({ r }: { r: ReceiverSnapshot }) {
             <table style={{ width: "100%", borderCollapse: "collapse" }}>
                 <thead>
                   <tr>
-                    <th style={metricTh}>PDOP</th>
-                    <th style={metricTh}>HDOP</th>
-                    <th style={metricTh}>VDOP</th>
-                    <th style={metricTh}>TDOP</th>
+                    <th style={metricTh}>
+                      <MetricGraphLabel panel="dop" {...graph}>
+                        PDOP
+                      </MetricGraphLabel>
+                    </th>
+                    <th style={metricTh}>
+                      <MetricGraphLabel panel="dop" {...graph}>
+                        HDOP
+                      </MetricGraphLabel>
+                    </th>
+                    <th style={metricTh}>
+                      <MetricGraphLabel panel="dop" {...graph}>
+                        VDOP
+                      </MetricGraphLabel>
+                    </th>
+                    <th style={metricTh}>
+                      <MetricGraphLabel panel="dop" {...graph}>
+                        TDOP
+                      </MetricGraphLabel>
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1265,13 +1426,27 @@ function StatusPanel({ r }: { r: ReceiverSnapshot }) {
                   lineHeight: 1.35,
                 }}
               >
-                Velocity
+                <MetricGraphLabel panel="velocity" {...graph}>
+                  Velocity
+                </MetricGraphLabel>
               </caption>
               <thead>
                 <tr>
-                  <th style={metricTh}>Horizontal (m/s)</th>
-                  <th style={metricTh}>Vertical (m/s)</th>
-                  <th style={metricTh}>Heading (°)</th>
+                  <th style={metricTh}>
+                    <MetricGraphLabel panel="velocity" {...graph}>
+                      Horizontal (m/s)
+                    </MetricGraphLabel>
+                  </th>
+                  <th style={metricTh}>
+                    <MetricGraphLabel panel="velocity" {...graph}>
+                      Vertical (m/s)
+                    </MetricGraphLabel>
+                  </th>
+                  <th style={metricTh}>
+                    <MetricGraphLabel panel="velocity" {...graph}>
+                      Heading (°)
+                    </MetricGraphLabel>
+                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -1286,11 +1461,11 @@ function StatusPanel({ r }: { r: ReceiverSnapshot }) {
         )}
       </div>
 
-      <VectorCard vector={r.vector} />
+      <VectorCard vector={r.vector} graph={graph} />
 
       <div className="status-card">
         <h3 className="status-card-title mixed-case">SV Information</h3>
-        <ConstellationTable r={r} />
+        <ConstellationTable r={r} graph={graph} />
       </div>
 
       <div className="status-card">
@@ -1504,7 +1679,7 @@ function constellationCountDisplay(name: string, n: number): string {
   return String(n);
 }
 
-function ConstellationTable({ r }: { r: ReceiverSnapshot }) {
+function ConstellationTable({ r, graph }: { r: ReceiverSnapshot; graph: MetricGraphContext }) {
   const used = r.sv_used_by_system ?? {};
   const tracked = r.sv_tracked_by_system ?? {};
   const names = [...new Set([...Object.keys(used), ...Object.keys(tracked)])].sort();
@@ -1516,8 +1691,16 @@ function ConstellationTable({ r }: { r: ReceiverSnapshot }) {
       <thead>
         <tr>
           <th style={{ textAlign: "left", padding: "4px 8px 4px 0" }}>Constellation</th>
-          <th style={{ textAlign: "right", padding: 4 }}>Used</th>
-          <th style={{ textAlign: "right", padding: 4 }}>Tracked</th>
+          <th style={{ textAlign: "right", padding: 4 }}>
+            <MetricGraphLabel panel="sv" {...graph}>
+              Used
+            </MetricGraphLabel>
+          </th>
+          <th style={{ textAlign: "right", padding: 4 }}>
+            <MetricGraphLabel panel="sv" {...graph}>
+              Tracked
+            </MetricGraphLabel>
+          </th>
         </tr>
       </thead>
       <tbody>

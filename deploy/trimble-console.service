@@ -6,6 +6,7 @@
 # and set User= / Group= to that account.
 #
 # Install (adjust paths and architecture binary name):
+#   make web && make linux-amd64   # on build host — dist/ is not in git
 #   sudo install -m755 trimble-console-linux-amd64 /usr/local/bin/trimble-console
 #   sudo mkdir -p /etc/trimble-console
 #   sudo cp /path/to/config.yaml /etc/trimble-console/config.yaml

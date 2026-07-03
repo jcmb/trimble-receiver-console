@@ -64,6 +64,7 @@ func logVerboseGSOFPacket(opts *ApplyGSOFOpts, tag string, b []byte) {
 // ApplyGSOFOpts selects optional stderr logging for ApplyGSOFBuffer.
 type ApplyGSOFOpts struct {
 	Verbose  bool
+	Summary  *GSOFSummary
 	GroupID  string
 	Identity string // serial number or anon store key
 }
@@ -103,7 +104,7 @@ func ApplyGSOFBuffer(snap *ReceiverSnapshot, gsofBuf []byte, opts *ApplyGSOFOpts
 		logVerboseGSOFPacket(opts, "gsof_packet_flat", flat)
 	}
 	var recCounts map[byte]int
-	if opts != nil && opts.Verbose {
+	if opts != nil && (opts.Verbose || opts.Summary != nil) {
 		recCounts = make(map[byte]int)
 	}
 	var detail48 []gsof.DetailSV
@@ -251,9 +252,14 @@ func ApplyGSOFBuffer(snap *ReceiverSnapshot, gsofBuf []byte, opts *ApplyGSOFOpts
 	})
 
 	if recCounts != nil {
-		_, has02 := recCounts[0x02]
-		log.Printf("gsof verbose group=%q identity=%q gsof_buf=%dB flat=%dB subrecords=%d hist=%s type02_present=%v",
-			opts.GroupID, opts.Identity, len(gsofBuf), len(flat), countGSOFSubrecords(recCounts), formatGSOFTypeHistogram(recCounts), has02)
+		if opts.Verbose {
+			_, has02 := recCounts[0x02]
+			log.Printf("gsof verbose group=%q identity=%q gsof_buf=%dB flat=%dB subrecords=%d hist=%s type02_present=%v",
+				opts.GroupID, opts.Identity, len(gsofBuf), len(flat), countGSOFSubrecords(recCounts), formatGSOFTypeHistogram(recCounts), has02)
+		}
+		if opts.Summary != nil {
+			opts.Summary.Record(opts.GroupID, opts.Identity, recCounts)
+		}
 	}
 
 	if hasUTC {
@@ -318,6 +324,7 @@ func detailToSVInfo(d []gsof.DetailSV) []SVInfo {
 			System:    s.System,
 			Elevation: s.Elevation,
 			Azimuth:   s.Azimuth,
+			HasAzEl:   true,
 			CN0:       s.CN0L1,
 			CN0L2:     l2,
 			CN0L56:    l56,
@@ -337,8 +344,7 @@ func briefToSVInfo(b []gsof.BriefSV) []SVInfo {
 		out = append(out, SVInfo{
 			PRN:       s.PRN,
 			System:    s.System,
-			Elevation: 0,
-			Azimuth:   0,
+			HasAzEl:   false,
 			CN0:       0,
 			UsedInPos: gsof.Flags1UsedInPos(s.Flags1),
 			UsedInRTK: gsof.Flags1UsedInRTK(s.Flags1),

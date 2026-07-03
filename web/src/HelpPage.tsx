@@ -22,6 +22,28 @@ export function HelpPage() {
         <code>07h</code>).
       </p>
 
+      <h2>Map tiles & imagery</h2>
+      <p className="muted">
+        The Map tab loads tiles from <code>map_tile_url</code> in <code>config.yaml</code>. Follow each provider&apos;s
+        license; the UI picks attribution text for common patterns.
+      </p>
+      <ul style={{ lineHeight: 1.6 }}>
+        <li>
+          <strong>OpenStreetMap</strong> (default) — street map:{" "}
+          <code>https://tile.openstreetmap.org/{"{z}/{x}/{y}"}.png</code>
+        </li>
+        <li>
+          <strong>OpenTopoMap</strong> — topography / hillshade (check CC-BY-SA): e.g.{" "}
+          <code>https://a.tile.opentopomap.org/{"{z}/{x}/{y}"}.png</code>
+        </li>
+        <li>
+          <strong>Esri World Imagery</strong> — satellite/aerial (verify Esri terms):{" "}
+          <code>
+            https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{"{z}/{y}/{x}"}
+          </code>
+        </li>
+      </ul>
+
       <h2>Required</h2>
       <table>
         <thead>
@@ -192,6 +214,66 @@ export function HelpPage() {
       <p className="muted">
         Each group listens on its own TCP port. Receivers must connect to the port for their group. A{" "}
         <code>people</code> list in configuration is reserved for future Google sign-in; it is ignored in this version.
+      </p>
+
+      <h2>Metric graphs</h2>
+      <p className="muted">
+        In the <strong>Detail</strong> tab, blue underlined field labels open a <strong>graph window</strong> for that
+        metric group. Each window keeps a short session history for the selected receiver, with pause/resume, scroll/drag
+        zoom, clickable legend toggles, and PNG download.
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>Graph</th>
+            <th>How to open</th>
+            <th>Contents</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Fix type</td>
+            <td>Fix type label (Position card)</td>
+            <td>GSOF position type code over time</td>
+          </tr>
+          <tr>
+            <td>Height &amp; σ Up</td>
+            <td>Height, σ Up labels</td>
+            <td>Ellipsoidal height and vertical sigma</td>
+          </tr>
+          <tr>
+            <td>Sigma &amp; RMS</td>
+            <td>σ East/North/Up, RMS labels</td>
+            <td>Position sigmas and RMS</td>
+          </tr>
+          <tr>
+            <td>DOP</td>
+            <td>PDOP, HDOP, VDOP, TDOP labels</td>
+            <td>Dilution of precision values</td>
+          </tr>
+          <tr>
+            <td>Velocity</td>
+            <td>Velocity table headers</td>
+            <td>Horizontal/vertical speed (m/s) and heading (°)</td>
+          </tr>
+          <tr>
+            <td>Vector diagnostics</td>
+            <td>Vector card field labels</td>
+            <td>Common L1/L2, diff SVs, RTK age (link integrity off by default)</td>
+          </tr>
+          <tr>
+            <td>SV Information</td>
+            <td><strong>Used</strong> or <strong>Tracked</strong> column header</td>
+            <td>
+              Per-constellation SV counts; <strong>used</strong> series are solid lines, <strong>tracked</strong> are
+              dashed (GPS, GLONASS, Galileo, BeiDou, QZSS, SBAS, NavIC)
+            </td>
+          </tr>
+        </tbody>
+      </table>
+      <p className="muted" style={{ marginTop: 8 }}>
+        The web UI listens on <code>0.0.0.0:7002</code> by default. Graph windows are compact popups; allow popups for
+        this site if your browser opens a full tab instead.
       </p>
 
       <p className="muted" style={{ marginTop: 24 }}>

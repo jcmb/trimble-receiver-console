@@ -17,12 +17,14 @@ const UndetailedReceiverRetention = 5 * time.Minute
 
 // GroupRuntime is runtime state for one configured group.
 type GroupRuntime struct {
-	ID        string
-	Name      string
-	TCPListen string
-	People    []string
-	Store     *Store
-	Registry  *Registry
+	ID          string
+	Name        string
+	TCPListen   string
+	GSOFConnect []string
+	People      []string
+	Store       *Store
+	Registry    *Registry
+	GSOFSummary *GSOFSummary
 
 	serialConnMu    sync.Mutex
 	serialConnCount map[string]int64 // keyed by ReceiverIdentityKey ("sn:…")
@@ -30,23 +32,29 @@ type GroupRuntime struct {
 
 // Hub owns per-group stores and registries.
 type Hub struct {
-	mu     sync.RWMutex
-	groups map[string]*GroupRuntime
-	order  []string
+	mu          sync.RWMutex
+	groups      map[string]*GroupRuntime
+	order       []string
+	gsofSummary *GSOFSummary
 }
 
 // NewHub builds runtime groups from config (after NormalizeGroups).
 func NewHub(cfg *appcfg.Config) *Hub {
 	h := &Hub{groups: make(map[string]*GroupRuntime)}
+	if cfg.SummaryGSOF {
+		h.gsofSummary = NewGSOFSummary()
+	}
 	for _, g := range cfg.Groups {
 		people := append([]string(nil), g.People...)
 		gr := &GroupRuntime{
-			ID:        g.ID,
-			Name:      g.Name,
-			TCPListen: g.TCPListen,
-			People:    people,
-			Store:     NewStore(),
-			Registry:  &Registry{},
+			ID:          g.ID,
+			Name:        g.Name,
+			TCPListen:   g.TCPListen,
+			GSOFConnect: append([]string(nil), g.GSOFConnect...),
+			People:      people,
+			Store:       NewStore(),
+			Registry:    &Registry{},
+			GSOFSummary: h.gsofSummary,
 		}
 		h.groups[g.ID] = gr
 		h.order = append(h.order, g.ID)
@@ -100,6 +108,28 @@ func (h *Hub) StartRetentionGC(ctx context.Context) {
 				return
 			case <-t.C:
 				h.purgeUndetailed()
+			}
+		}
+	}()
+}
+
+// GSOFSummaryInterval is how often -summary-gsof logs subtype rollups.
+const GSOFSummaryInterval = 15 * time.Second
+
+// StartGSOFSummary periodically logs GSOF sub-record type summaries when enabled.
+func (h *Hub) StartGSOFSummary(ctx context.Context) {
+	if h.gsofSummary == nil {
+		return
+	}
+	go func() {
+		t := time.NewTicker(GSOFSummaryInterval)
+		defer t.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-t.C:
+				h.gsofSummary.Flush()
 			}
 		}
 	}()

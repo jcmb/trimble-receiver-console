@@ -1,11 +1,19 @@
 # Copy to config.yaml and adjust.
+#
+# Build: cmd/server/dist/ is gitignored — run `make web` or `make server` before `go build`.
+#
+# Two listen ports:
+#   http_bind + http_port  — web UI (default 0.0.0.0:7002)
+#   groups[].tcp_listen    — inbound receiver TCP (optional if gsof_connect is set)
+#   groups[].gsof_connect  — outbound dials to host:port GSOF streams (optional if tcp_listen is set)
+# Set TRIMBLE_CONFIG to this file path if not using ./config.yaml in the cwd.
 
-# HTTP UI: bind address and port (defaults if omitted: 127.0.0.1 and 8081).
-http_bind: "127.0.0.1"
-http_port: 8081
+# HTTP UI: bind address and port (defaults if omitted: 0.0.0.0 and 7002).
+http_bind: "0.0.0.0"
+http_port: 7002
 
 # Optional legacy override — full listen address; when set, overrides http_bind and http_port.
-# http_listen: "0.0.0.0:8081"
+# http_listen: "0.0.0.0:7002"
 
 # When "groups" is non-empty, each group has its own TCP port.
 # When "groups" is omitted, a single default group uses tcp_listen (backward compatible).
@@ -19,13 +27,51 @@ groups:
     tcp_listen: "0.0.0.0:9002"
     people: []
 
+# Outbound-only: dial GSOF streams (no local tcp_listen):
+# groups:
+#   - id: remote
+#     name: "Remote receivers"
+#     gsof_connect:
+#       - "192.168.10.5:2101"
+#       - "192.168.10.6:5018"
+#     people: []
+
+# Both inbound listen and outbound dials on one group:
+#   - id: hybrid
+#     name: "Hybrid"
+#     tcp_listen: "0.0.0.0:9001"
+#     gsof_connect:
+#       - "10.0.0.20:2101"
+#     people: []
+
+# Single receiver on port 2101 (replace groups above, or use one group only):
+# groups:
+#   - id: default
+#     name: "Receivers"
+#     tcp_listen: "0.0.0.0:2101"
+#     people: []
+
 # Legacy (used only if groups: is empty):
 # tcp_listen: "0.0.0.0:9000"
+# tcp_listen: "0.0.0.0:2101"
 
 default_mode: "read_write"
 ignore_tcp_gsof_transmission_gap1: true
 
+# Log GSOF decode details to stderr (or use: trimble-console -verbose-gsof)
+# verbose_gsof: true
+
+# Periodic GSOF sub-record type summary to stderr (or use: trimble-console -summary-gsof)
+# summary_gsof: true
+
 cors_origins:
   - "*"
 
+# Default: OpenStreetMap cartographic tiles (free; heavy use should use your own tile cache per OSM policy).
 map_tile_url: "https://tile.openstreetmap.org/{z}/{x}/{y}.png"
+
+# Examples (verify license / attribution before production):
+# OpenTopoMap (topographic hillshade):
+# map_tile_url: "https://a.tile.opentopomap.org/{z}/{x}/{y}.png"
+# Esri World Imagery (satellite — check Esri terms):
+# map_tile_url: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"

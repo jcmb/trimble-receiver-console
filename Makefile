@@ -1,6 +1,6 @@
-.PHONY: all web server linux-all linux-amd64 linux-arm64 linux-arm
-# Default: embedded UI + Linux amd64, arm64, arm (see `make server` for native host binary only).
-all: linux-all
+.PHONY: all web server linux-all linux-amd64 linux-arm64 linux-arm macos-arm64
+# Default: embedded UI + Linux amd64/arm64/arm + macOS arm64 (see `make server` for native host binary only).
+all: linux-all macos-arm64
 
 # Set at link time; defaults to git describe (commit + dirty suffix) or "dev"
 VERSION ?= $(shell git describe --always --dirty 2>/dev/null || echo dev)
@@ -37,3 +37,7 @@ linux-all: web
 	$(LINUX_CGO) GOOS=linux GOARCH=amd64 go build -ldflags "$(LDFLAGS)" -o bin/trimble-console-linux-amd64 ./cmd/server
 	$(LINUX_CGO) GOOS=linux GOARCH=arm64 go build -ldflags "$(LDFLAGS)" -o bin/trimble-console-linux-arm64 ./cmd/server
 	$(LINUX_CGO) GOOS=linux GOARCH=arm GOARM=$(GOARM) go build -ldflags "$(LDFLAGS)" -o bin/trimble-console-linux-arm ./cmd/server
+
+macos-arm64: web
+	mkdir -p bin
+	$(LINUX_CGO) GOOS=darwin GOARCH=arm64 go build -ldflags "$(LDFLAGS)" -o bin/trimble-console-macos-arm64 ./cmd/server

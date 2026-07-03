@@ -3,6 +3,8 @@ export type SVInfo = {
   system: number;
   elevation_deg: number;
   azimuth_deg: number;
+  /** False for GSOF brief SV (0x21) — no sky geometry; show N/A in tables and omit from sky plot. */
+  has_az_el?: boolean;
   /** L1 (primary) C/N₀, dB-Hz */
   cn0_db_hz: number;
   cn0_l2_db_hz?: number;
@@ -127,6 +129,7 @@ export type ReceiverSnapshot = {
   serial: string;
   firmware_version: string;
   remote_addr: string;
+  connection_key?: string;
   mode: "read_only" | "read_write";
   online: boolean;
   last_update: string;
@@ -186,6 +189,7 @@ export type ReceiverSnapshot = {
 export type GroupInfo = {
   id: string;
   name: string;
-  tcp_listen: string;
+  tcp_listen?: string;
+  gsof_connect?: string[];
   people: string[];
 };

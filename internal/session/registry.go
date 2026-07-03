@@ -27,7 +27,7 @@ func (r *Registry) Remove(s *ConnSession) {
 	}
 }
 
-// Find resolves :id from URL (serial number or anon:host:port).
+// Find resolves :id from URL (connection_key, serial, or legacy anon:/out: keys).
 func (r *Registry) Find(id string) *ConnSession {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
@@ -36,7 +36,13 @@ func (r *Registry) Find(id string) *ConnSession {
 			return s
 		}
 		snap, _ := s.store.Get(s.StoreKey())
-		if snap != nil && snap.Serial == id {
+		if snap == nil {
+			continue
+		}
+		if snap.Serial == id || snap.ConnectionKey == id {
+			return s
+		}
+		if ReceiverIdentityKey(snap) == id {
 			return s
 		}
 	}
