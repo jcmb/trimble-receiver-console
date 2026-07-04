@@ -10,6 +10,7 @@ import (
 	"time"
 
 	appcfg "github.com/gkirk/trimble-receiver-console/internal/config"
+	"github.com/gkirk/trimble-receiver-console/internal/httppath"
 	"github.com/gkirk/trimble-receiver-console/internal/session"
 	trimblecfg "github.com/gkirk/trimble-receiver-console/internal/trimble/configencode"
 	"github.com/gkirk/trimble-receiver-console/internal/version"
@@ -23,14 +24,21 @@ func consoleVersionPayload() string {
 
 // Server is the HTTP API and static file server.
 type Server struct {
-	cfg    *appcfg.Config
-	hub    *session.Hub
-	dist   http.Handler
-	origin []string
+	cfg      *appcfg.Config
+	hub      *session.Hub
+	dist     http.Handler
+	origin   []string
+	rootPath httppath.RootPath
 }
 
 func New(cfg *appcfg.Config, hub *session.Hub, dist http.Handler) *Server {
-	return &Server{cfg: cfg, hub: hub, dist: dist, origin: cfg.CORSOrigins}
+	return &Server{
+		cfg:      cfg,
+		hub:      hub,
+		dist:     dist,
+		origin:   cfg.CORSOrigins,
+		rootPath: httppath.RootPath{Default: cfg.RootPath},
+	}
 }
 
 func (s *Server) Handler() http.Handler {
@@ -40,7 +48,11 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("/api/config", s.cors(s.handlePublicConfig))
 	mux.HandleFunc("/api/stream", s.cors(s.handleStream))
 	mux.Handle("/", s.dist)
-	return mux
+	return httppath.StripMiddleware(s.rootPath, mux)
+}
+
+func (s *Server) effectiveRootPath(r *http.Request) string {
+	return httppath.FromContext(r.Context())
 }
 
 func (s *Server) cors(next http.HandlerFunc) http.HandlerFunc {
@@ -101,9 +113,10 @@ func (s *Server) handlePublicConfig(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "application/json")
 	payload := map[string]interface{}{
-		"map_tile_url":     s.cfg.MapTileURL,
-		"groups":           pub,
-		"console_version":  consoleVersionPayload(),
+		"map_tile_url":    s.cfg.MapTileURL,
+		"groups":          pub,
+		"console_version": consoleVersionPayload(),
+		"root_path":       s.effectiveRootPath(r),
 	}
 	if s.cfg.SuggestedGroupID != "" {
 		payload["suggested_group_id"] = s.cfg.SuggestedGroupID

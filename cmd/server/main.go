@@ -13,6 +13,7 @@ import (
 
 	"github.com/gkirk/trimble-receiver-console/internal/api"
 	appcfg "github.com/gkirk/trimble-receiver-console/internal/config"
+	"github.com/gkirk/trimble-receiver-console/internal/httppath"
 	"github.com/gkirk/trimble-receiver-console/internal/httpstatic"
 	"github.com/gkirk/trimble-receiver-console/internal/ingress"
 	"github.com/gkirk/trimble-receiver-console/internal/session"
@@ -93,6 +94,7 @@ func main() {
 	summaryGSOF := flag.Bool("summary-gsof", false, "log periodic GSOF sub-record type summaries (every 15s per stream)")
 	gsofConnectGroup := flag.String("gsof-connect-group", "", "group id for -gsof-connect (default: first group)")
 	noInboundTCP := flag.Bool("no-inbound-tcp", false, "with -gsof-connect: do not listen for inbound receiver TCP on that group")
+	rootPath := flag.String("root-path", "", "public URL path prefix when served under a subpath (e.g. /trimble-console); overridden per request by X-Forwarded-Prefix")
 	flag.Var(&cliGSOFConnect, "gsof-connect", "outbound GSOF TCP dial target host:port (repeatable)")
 	flag.Parse()
 
@@ -157,6 +159,12 @@ func main() {
 		cfg.SummaryGSOF = true
 		log.Printf("GSOF subtype summary enabled (-summary-gsof, interval %s)", session.GSOFSummaryInterval)
 	}
+	if strings.TrimSpace(*rootPath) != "" {
+		cfg.RootPath = httppath.Normalize(*rootPath)
+	}
+	if cfg.RootPath != "" {
+		log.Printf("HTTP UI root path %q (-root-path or config root_path; X-Forwarded-Prefix overrides per request)", cfg.RootPath)
+	}
 
 	hub := session.NewHub(cfg)
 	ctx, cancel := context.WithCancel(context.Background())
@@ -168,8 +176,8 @@ func main() {
 	if err != nil {
 		log.Fatalf("embed dist: %v", err)
 	}
-	static := httpstatic.SPADist(sub)
-
+	rp := httppath.RootPath{Default: cfg.RootPath}
+	static := httpstatic.SPADist(sub, rp.FromRequest)
 	srv := api.New(cfg, hub, static)
 
 	for _, g := range hub.OrderedGroups() {

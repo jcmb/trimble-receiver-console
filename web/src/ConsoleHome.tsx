@@ -1,5 +1,6 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { Link } from "react-router-dom";
+import { appPath, setAppBasePath, wsStreamUrl } from "./appPaths";
 import type {
   DCOLRetSerial,
   GroupInfo,
@@ -189,9 +190,10 @@ export default function ConsoleHome() {
   const appliedSuggestedGroup = useRef(false);
 
   useEffect(() => {
-    fetch("/api/config")
+    fetch(appPath("/api/config"))
       .then((r) => r.json())
       .then((j) => {
+        if (typeof j.root_path === "string") setAppBasePath(j.root_path);
         if (j.map_tile_url) setMapTileUrl(j.map_tile_url);
         if (Array.isArray(j.groups)) setGroups(j.groups);
         if (typeof j.suggested_group_id === "string" && j.suggested_group_id) {
@@ -237,9 +239,7 @@ export default function ConsoleHome() {
       setReceivers([]);
       return;
     }
-    const proto = location.protocol === "https:" ? "wss:" : "ws:";
-    const u = `${proto}//${location.host}/api/stream?group=${encodeURIComponent(groupId)}`;
-    const ws = new WebSocket(u);
+    const ws = new WebSocket(wsStreamUrl(groupId));
     ws.onmessage = (ev) => {
       try {
         const j = JSON.parse(ev.data);

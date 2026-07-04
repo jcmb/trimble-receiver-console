@@ -106,6 +106,44 @@ http_listen: "0.0.0.0:8080"
 
 Use `0.0.0.0` to accept connections on all interfaces; use `127.0.0.1` for localhost only.
 
+### Reverse proxy (subpath)
+
+The UI can be served under a URL prefix (e.g. `https://example.com/trimble-console/`) behind nginx, Caddy, or similar.
+
+**Automatic detection:** set the **`X-Forwarded-Prefix`** header to the public path (no trailing slash). The server strips that prefix from incoming paths when the proxy forwards the full URI, injects the prefix into `index.html`, and returns it in **`/api/config`** as `root_path`.
+
+**Static prefix:** set **`root_path`** in `config.yaml` or pass **`-root-path /trimble-console`** when the proxy does not send `X-Forwarded-Prefix`. The CLI flag overrides YAML. Per-request `X-Forwarded-Prefix` still wins when present.
+
+nginx example (proxy strips the location prefix before forwarding):
+
+```nginx
+location /trimble-console/ {
+    proxy_pass http://127.0.0.1:7002/;
+    proxy_http_version 1.1;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection "upgrade";
+    proxy_set_header Host $host;
+    proxy_set_header X-Forwarded-Prefix /trimble-console;
+}
+```
+
+Caddy example:
+
+```caddy
+handle_path /trimble-console/* {
+    reverse_proxy localhost:7002 {
+        header_up X-Forwarded-Prefix /trimble-console
+    }
+}
+```
+
+Bind the Go process to localhost when the proxy is on the same host:
+
+```yaml
+http_bind: "127.0.0.1"
+http_port: 7002
+```
+
 ### Groups
 
 - Each **group** has its own **`tcp_listen`** address. Receivers for that site connect to that port.

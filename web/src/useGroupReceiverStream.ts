@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { wsStreamUrl } from "./appPaths";
 import type { ReceiverSnapshot } from "./types";
 
 export function useGroupReceiverStream(groupId: string | null): ReceiverSnapshot[] {
@@ -9,9 +10,7 @@ export function useGroupReceiverStream(groupId: string | null): ReceiverSnapshot
       setReceivers([]);
       return;
     }
-    const proto = location.protocol === "https:" ? "wss:" : "ws:";
-    const u = `${proto}//${location.host}/api/stream?group=${encodeURIComponent(groupId)}`;
-    const ws = new WebSocket(u);
+    const ws = new WebSocket(wsStreamUrl(groupId));
     ws.onmessage = (ev) => {
       try {
         const j = JSON.parse(ev.data);

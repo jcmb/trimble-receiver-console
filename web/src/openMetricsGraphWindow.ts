@@ -1,4 +1,5 @@
 import type { MetricsPanelId } from "./metricsSeries";
+import { appPath } from "./appPaths";
 
 export function metricsGraphUrl(
   panel: MetricsPanelId,
@@ -11,7 +12,7 @@ export function metricsGraphUrl(
     receiver: receiverKey,
   });
   if (receiverLabel) params.set("label", receiverLabel);
-  return `/graph/${panel}?${params.toString()}`;
+  return appPath(`/graph/${panel}?${params.toString()}`);
 }
 
 /** Open a metrics graph in a compact popup window. */

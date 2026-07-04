@@ -13,7 +13,7 @@ const webUiVersion =
 
 export default defineConfig({
   plugins: [react()],
-  base: "/",
+  base: "./",
   define: {
     __WEB_UI_VERSION__: JSON.stringify(webUiVersion),
   },

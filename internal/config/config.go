@@ -35,6 +35,9 @@ type Config struct {
 	HTTPBind string `yaml:"http_bind"`
 	// HTTPPort is the TCP port for the HTTP UI (ignored when HTTPListen is set). Default 7002.
 	HTTPPort int `yaml:"http_port"`
+	// RootPath is the public URL prefix when the UI is served under a subpath (e.g. /trimble-console).
+	// Overridden per request by X-Forwarded-Prefix when behind a reverse proxy.
+	RootPath string `yaml:"root_path"`
 	// TCPListen is used only when groups is empty (backward compatibility).
 	TCPListen string `yaml:"tcp_listen"`
 	// GSOFConnect is used only when groups is empty; copied into the default group (see NormalizeGroups).

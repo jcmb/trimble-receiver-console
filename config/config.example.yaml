@@ -15,6 +15,10 @@ http_port: 7002
 # Optional legacy override — full listen address; when set, overrides http_bind and http_port.
 # http_listen: "0.0.0.0:7002"
 
+# Public URL prefix when served behind a reverse proxy subpath (e.g. /trimble-console).
+# Overridden per request when the proxy sends X-Forwarded-Prefix. CLI: -root-path
+# root_path: "/trimble-console"
+
 # When "groups" is non-empty, each group has its own TCP port.
 # When "groups" is omitted, a single default group uses tcp_listen (backward compatible).
 groups:
