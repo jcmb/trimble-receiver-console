@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import type { SVInfo } from "./types";
-import { SV_SYSTEM_NAMES, sysIndex, trackedSatellitesForSky } from "./svSkyShared";
+import { SV_SYSTEM_NAMES, sysIndex, fmtSvElevation, fmtSvAzimuth, svHasAzEl } from "./svSkyShared";
 
 type SortCol =
   | "system"
@@ -59,6 +59,16 @@ function cmpCnDbHz(
   return a - b;
 }
 
+function cmpAzEl(a: SVInfo, b: SVInfo, col: "elev" | "azim"): number {
+  const okA = svHasAzEl(a);
+  const okB = svHasAzEl(b);
+  if (!okA && !okB) return 0;
+  if (!okA) return 1;
+  if (!okB) return -1;
+  if (col === "elev") return a.elevation_deg - b.elevation_deg;
+  return a.azimuth_deg - b.azimuth_deg;
+}
+
 function compareSv(a: SVInfo, b: SVInfo, col: SortCol, asc: boolean): number {
   let v = 0;
   switch (col) {
@@ -69,10 +79,10 @@ function compareSv(a: SVInfo, b: SVInfo, col: SortCol, asc: boolean): number {
       v = a.prn - b.prn;
       break;
     case "elev":
-      v = a.elevation_deg - b.elevation_deg;
+      v = cmpAzEl(a, b, "elev");
       break;
     case "azim":
-      v = a.azimuth_deg - b.azimuth_deg;
+      v = cmpAzEl(a, b, "azim");
       break;
     case "position":
       v = Number(a.used_in_position) - Number(b.used_in_position);
@@ -108,12 +118,10 @@ function compareSv(a: SVInfo, b: SVInfo, col: SortCol, asc: boolean): number {
 }
 
 export function SVTrackingCard({ svs }: { svs: SVInfo[] }) {
-  const tracked = useMemo(() => trackedSatellitesForSky(svs), [svs]);
-
   const activeSysIndices = useMemo(() => {
     const seen = new Set<number>();
     const ordered: number[] = [];
-    for (const sv of tracked) {
+    for (const sv of svs) {
       const i = sysIndex(sv);
       if (!seen.has(i)) {
         seen.add(i);
@@ -121,7 +129,7 @@ export function SVTrackingCard({ svs }: { svs: SVInfo[] }) {
       }
     }
     return ordered;
-  }, [tracked]);
+  }, [svs]);
 
   type PanelTab = "all" | number;
   const [panelTab, setPanelTab] = useState<PanelTab>("all");
@@ -137,9 +145,9 @@ export function SVTrackingCard({ svs }: { svs: SVInfo[] }) {
   }, [panelTab, activeSysIndices]);
 
   const filteredList = useMemo(() => {
-    if (panelTab === "all") return tracked;
-    return tracked.filter((sv) => sysIndex(sv) === panelTab);
-  }, [tracked, panelTab]);
+    if (panelTab === "all") return svs;
+    return svs.filter((sv) => sysIndex(sv) === panelTab);
+  }, [svs, panelTab]);
 
   const sortedList = useMemo(() => {
     const arr = filteredList.slice();
@@ -247,10 +255,10 @@ export function SVTrackingCard({ svs }: { svs: SVInfo[] }) {
     ...bandDivider,
   };
 
-  if (tracked.length === 0) {
+  if (svs.length === 0) {
     return (
       <p className="muted" style={{ margin: 0, fontSize: 13 }}>
-        No satellites with usable geometry in this snapshot (same filter as the sky plot).
+        No satellites in this snapshot.
       </p>
     );
   }
@@ -374,8 +382,8 @@ export function SVTrackingCard({ svs }: { svs: SVInfo[] }) {
                 <tr key={`${si}-${sv.prn}`}>
                   <td style={td}>{SV_SYSTEM_NAMES[si]}</td>
                   <td style={tdNum}>{sv.prn}</td>
-                  <td style={tdNum}>{sv.elevation_deg.toFixed(0)}</td>
-                  <td style={tdNum}>{sv.azimuth_deg.toFixed(0)}</td>
+                  <td style={tdNum}>{fmtSvElevation(sv)}</td>
+                  <td style={tdNum}>{fmtSvAzimuth(sv)}</td>
                   <td style={{ ...td, paddingLeft: 10 }}>{sv.used_in_position ? "Used" : "Not used"}</td>
                   <td style={{ ...tdMono, paddingLeft: 10 }}>{sv.used_in_rtk ? "Yes" : "—"}</td>
                   <td

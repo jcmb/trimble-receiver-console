@@ -26,6 +26,41 @@ func TestParseAllSVDetailType48(t *testing.T) {
 	}
 }
 
+// Regression: legacy firmware often pads the GSOF payload past n×stride OR sends a short final page.
+func TestParseAllSVDetailType48_paddingAndPartial(t *testing.T) {
+	row := func() []byte {
+		var r []byte
+		r = append(r, 5, 0, 0xC0, 0, 45)
+		az := uint16(90)
+		tmp := make([]byte, 2)
+		binary.BigEndian.PutUint16(tmp, az)
+		r = append(r, tmp...)
+		r = append(r, 40*4)
+		r = append(r, 0, 0)
+		return r
+	}
+	t.Run("trailing_slack_after_10byte_rows", func(t *testing.T) {
+		var b []byte
+		b = append(b, 1, 0x11, 2) // 2 SVs
+		b = append(b, row()...)
+		b = append(b, row()...)
+		b = append(b, 0, 0, 0, 0) // 4 bytes padding — old strict parser rejected (len != n×stride)
+		out, ok := ParseAllSVDetailType48(b)
+		if !ok || len(out) != 2 {
+			t.Fatalf("ok=%v len=%d", ok, len(out))
+		}
+	})
+	t.Run("partial_page_fewer_rows_than_count", func(t *testing.T) {
+		var b []byte
+		b = append(b, 1, 0x11, 5) // claims 5 SVs
+		b = append(b, row()...)   // only one row present (50 bytes header+row vs need 50 for 5×10)
+		out, ok := ParseAllSVDetailType48(b)
+		if !ok || len(out) != 1 {
+			t.Fatalf("want one decoded SV: ok=%v len=%d", ok, len(out))
+		}
+	})
+}
+
 func TestParseAllSVDetailType34(t *testing.T) {
 	// One SV: PRN 5, GPS(0), flags, el=45, az=90 (BE), snr bytes
 	var b []byte

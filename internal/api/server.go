@@ -10,6 +10,7 @@ import (
 	"time"
 
 	appcfg "github.com/gkirk/trimble-receiver-console/internal/config"
+	"github.com/gkirk/trimble-receiver-console/internal/httppath"
 	"github.com/gkirk/trimble-receiver-console/internal/session"
 	trimblecfg "github.com/gkirk/trimble-receiver-console/internal/trimble/configencode"
 	"github.com/gkirk/trimble-receiver-console/internal/version"
@@ -23,14 +24,21 @@ func consoleVersionPayload() string {
 
 // Server is the HTTP API and static file server.
 type Server struct {
-	cfg    *appcfg.Config
-	hub    *session.Hub
-	dist   http.Handler
-	origin []string
+	cfg      *appcfg.Config
+	hub      *session.Hub
+	dist     http.Handler
+	origin   []string
+	rootPath httppath.RootPath
 }
 
 func New(cfg *appcfg.Config, hub *session.Hub, dist http.Handler) *Server {
-	return &Server{cfg: cfg, hub: hub, dist: dist, origin: cfg.CORSOrigins}
+	return &Server{
+		cfg:      cfg,
+		hub:      hub,
+		dist:     dist,
+		origin:   cfg.CORSOrigins,
+		rootPath: httppath.RootPath{Default: cfg.RootPath},
+	}
 }
 
 func (s *Server) Handler() http.Handler {
@@ -40,7 +48,11 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("/api/config", s.cors(s.handlePublicConfig))
 	mux.HandleFunc("/api/stream", s.cors(s.handleStream))
 	mux.Handle("/", s.dist)
-	return mux
+	return httppath.StripMiddleware(s.rootPath, mux)
+}
+
+func (s *Server) effectiveRootPath(r *http.Request) string {
+	return httppath.FromContext(r.Context())
 }
 
 func (s *Server) cors(next http.HandlerFunc) http.HandlerFunc {
@@ -72,10 +84,21 @@ func (s *Server) cors(next http.HandlerFunc) http.HandlerFunc {
 }
 
 type groupDTO struct {
-	ID        string   `json:"id"`
-	Name      string   `json:"name"`
-	TCPListen string   `json:"tcp_listen"`
-	People    []string `json:"people"`
+	ID          string   `json:"id"`
+	Name        string   `json:"name"`
+	TCPListen   string   `json:"tcp_listen,omitempty"`
+	GSOFConnect []string `json:"gsof_connect,omitempty"`
+	People      []string `json:"people"`
+}
+
+func groupToDTO(g *session.GroupRuntime) groupDTO {
+	return groupDTO{
+		ID:          g.ID,
+		Name:        g.Name,
+		TCPListen:   g.TCPListen,
+		GSOFConnect: append([]string(nil), g.GSOFConnect...),
+		People:      append([]string(nil), g.People...),
+	}
 }
 
 func (s *Server) handlePublicConfig(w http.ResponseWriter, r *http.Request) {
@@ -86,14 +109,19 @@ func (s *Server) handlePublicConfig(w http.ResponseWriter, r *http.Request) {
 	groups := s.hub.OrderedGroups()
 	pub := make([]groupDTO, 0, len(groups))
 	for _, g := range groups {
-		pub = append(pub, groupDTO{ID: g.ID, Name: g.Name, TCPListen: g.TCPListen, People: append([]string(nil), g.People...)})
+		pub = append(pub, groupToDTO(g))
 	}
 	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(map[string]interface{}{
-		"map_tile_url":     s.cfg.MapTileURL,
-		"groups":           pub,
+	payload := map[string]interface{}{
+		"map_tile_url":    s.cfg.MapTileURL,
+		"groups":          pub,
 		"console_version": consoleVersionPayload(),
-	})
+		"root_path":       s.effectiveRootPath(r),
+	}
+	if s.cfg.SuggestedGroupID != "" {
+		payload["suggested_group_id"] = s.cfg.SuggestedGroupID
+	}
+	_ = json.NewEncoder(w).Encode(payload)
 }
 
 func (s *Server) handleGroupsRoot(w http.ResponseWriter, r *http.Request) {
@@ -104,7 +132,7 @@ func (s *Server) handleGroupsRoot(w http.ResponseWriter, r *http.Request) {
 	groups := s.hub.OrderedGroups()
 	pub := make([]groupDTO, 0, len(groups))
 	for _, g := range groups {
-		pub = append(pub, groupDTO{ID: g.ID, Name: g.Name, TCPListen: g.TCPListen, People: append([]string(nil), g.People...)})
+		pub = append(pub, groupToDTO(g))
 	}
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(map[string]interface{}{"groups": pub})
@@ -126,7 +154,7 @@ func (s *Server) handleGroupsPath(w http.ResponseWriter, r *http.Request) {
 	}
 	if len(parts) >= 2 && parts[1] == "receivers" {
 		if len(parts) == 2 && r.Method == http.MethodGet {
-			list := gr.AttachSerialConnCounts(gr.Store.ListUniqueBySerial())
+			list := session.SanitizeSnapshotsForJSON(gr.AttachSerialConnCounts(gr.Store.ListUniqueBySerial()))
 			w.Header().Set("Content-Type", "application/json")
 			_ = json.NewEncoder(w).Encode(map[string]interface{}{
 				"receivers":       list,
@@ -136,7 +164,7 @@ func (s *Server) handleGroupsPath(w http.ResponseWriter, r *http.Request) {
 		}
 		if len(parts) == 3 && r.Method == http.MethodGet {
 			rid := parts[2]
-			snap, ok := gr.Store.Get(rid)
+			snap, ok := gr.Store.FindSnapshot(rid)
 			if !ok {
 				cs := gr.Registry.Find(rid)
 				if cs != nil {
@@ -153,7 +181,7 @@ func (s *Server) handleGroupsPath(w http.ResponseWriter, r *http.Request) {
 				cp.SerialConnectionCount = gr.SerialConnectionCount(k)
 			}
 			w.Header().Set("Content-Type", "application/json")
-			_ = json.NewEncoder(w).Encode(&cp)
+			_ = json.NewEncoder(w).Encode(session.SanitizeSnapshotForJSON(&cp))
 			return
 		}
 		if len(parts) == 4 && parts[3] == "config" && r.Method == http.MethodPost {
@@ -215,12 +243,13 @@ func (s *Server) handleStream(w http.ResponseWriter, r *http.Request) {
 		case <-ctx.Done():
 			return
 		case <-tick.C:
-			list := gr.AttachSerialConnCounts(gr.Store.ListUniqueBySerial())
+			list := session.SanitizeSnapshotsForJSON(gr.AttachSerialConnCounts(gr.Store.ListUniqueBySerial()))
 			b, err := json.Marshal(map[string]interface{}{
 				"receivers":       list,
 				"console_version": consoleVersionPayload(),
 			})
 			if err != nil {
+				log.Printf("websocket json encode group=%q: %v", gid, err)
 				continue
 			}
 			writeCtx, cancel := context.WithTimeout(ctx, 5*time.Second)

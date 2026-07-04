@@ -35,6 +35,8 @@ type SVInfo struct {
 	System    int      `json:"system"` // 0 GPS, 1 SBAS, 2 GLO, 3 Gal, 4 QZSS, 5 BDS
 	Elevation float64  `json:"elevation_deg"`
 	Azimuth   float64  `json:"azimuth_deg"`
+	// HasAzEl is false for GSOF brief SV (0x21) which has no elevation/azimuth; sky plot must omit those rows.
+	HasAzEl   bool     `json:"has_az_el"`
 	CN0       float64  `json:"cn0_db_hz"` // L1 (first carrier); backward-compatible primary SNR
 	CN0L2     *float64 `json:"cn0_l2_db_hz,omitempty"`
 	CN0L56    *float64 `json:"cn0_l56_db_hz,omitempty"` // third SNR byte — displayed in L5 column
@@ -64,6 +66,8 @@ type ReceiverSnapshot struct {
 	Serial          string    `json:"serial"`
 	FirmwareVersion string    `json:"firmware_version"`
 	RemoteAddr      string    `json:"remote_addr"`
+	// ConnectionKey is the store key (serial, out:host:port, or anon:addr) for API/WebSocket identity.
+	ConnectionKey   string    `json:"connection_key,omitempty"`
 	Mode            Mode      `json:"mode"`
 	Online          bool      `json:"online"`
 	LastUpdate      time.Time `json:"last_update"`
@@ -165,6 +169,12 @@ func ReceiverIdentityKey(v *ReceiverSnapshot) string {
 	if s := strings.TrimSpace(v.Serial); s != "" {
 		return "sn:" + strings.ToLower(s)
 	}
+	if k := strings.TrimSpace(v.ConnectionKey); k != "" {
+		return k
+	}
+	if strings.HasPrefix(v.RemoteAddr, "→ ") {
+		return "out:" + strings.TrimSpace(strings.TrimPrefix(v.RemoteAddr, "→ "))
+	}
 	return "anon:" + v.RemoteAddr
 }
 
@@ -244,6 +254,30 @@ func (s *Store) ListUniqueBySerial() []*ReceiverSnapshot {
 		out = append(out, v)
 	}
 	return out
+}
+
+// FindSnapshot looks up a receiver by store key, connection_key, serial, or ReceiverIdentityKey.
+func (s *Store) FindSnapshot(id string) (*ReceiverSnapshot, bool) {
+	if id == "" {
+		return nil, false
+	}
+	if snap, ok := s.Get(id); ok && snap != nil {
+		return snap, true
+	}
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	for _, v := range s.data {
+		if v == nil {
+			continue
+		}
+		if v.Serial == id || v.ConnectionKey == id {
+			return v, true
+		}
+		if ReceiverIdentityKey(v) == id {
+			return v, true
+		}
+	}
+	return nil, false
 }
 
 // PurgeUndetailed removes bare connections that never gained serial, DCOL RET SERIAL, or GSOF within

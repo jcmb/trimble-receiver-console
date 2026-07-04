@@ -29,3 +29,6 @@ go.work.sum
 
 # Built server binary and cross-compile outputs
 bin/
+
+# Vite build output embedded by cmd/server (run make web before go build)
+cmd/server/dist/

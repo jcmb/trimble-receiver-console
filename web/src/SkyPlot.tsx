@@ -4,6 +4,7 @@ import { useTheme } from "./themeContext";
 import {
   SV_SYSTEM_NAMES,
   sysIndex,
+  svHasAzEl,
   svTooltipText,
   trackedSatellitesForSky,
 } from "./svSkyShared";
@@ -72,7 +73,7 @@ export function SkyPlot({ svs }: { svs: SVInfo[] }) {
   const plotInput = useMemo(() => {
     const out: SVInfo[] = [];
     for (const sv of svs) {
-      if (sv.elevation_deg <= 0 && sv.azimuth_deg <= 0 && !sv.used_in_position) {
+      if (!svHasAzEl(sv)) {
         continue;
       }
       if (!visibleSys[sysIndex(sv)]) {
@@ -267,25 +268,8 @@ export function SkyPlot({ svs }: { svs: SVInfo[] }) {
         />
         {tip && (
           <pre
-            style={{
-              position: "fixed",
-              left: tip.px,
-              top: tip.py,
-              margin: 0,
-              zIndex: 50,
-              pointerEvents: "none",
-              whiteSpace: "pre-wrap",
-              maxWidth: 280,
-              padding: "8px 10px",
-              fontSize: 12,
-              lineHeight: 1.35,
-              fontFamily: "system-ui, sans-serif",
-              background: "var(--app-panel, #1e2329)",
-              color: "var(--app-text, #e8eaed)",
-              border: "1px solid var(--app-border, #3c444d)",
-              borderRadius: 6,
-              boxShadow: "0 4px 12px rgba(0,0,0,0.35)",
-            }}
+            className="metrics-chart-tooltip"
+            style={{ left: tip.px, top: tip.py }}
           >
             {tip.text}
           </pre>

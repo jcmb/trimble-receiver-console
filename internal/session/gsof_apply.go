@@ -14,9 +14,57 @@ import (
 	"github.com/gkirk/trimble-receiver-console/internal/gsof"
 )
 
+const (
+	verboseGSOFHexChunkBytes = 48   // bytes per log line (spaced hex)
+	verboseGSOFHexMaxDump    = 8192 // cap per buffer to avoid huge logs
+)
+
+func spacedHexBytes(b []byte) string {
+	if len(b) == 0 {
+		return ""
+	}
+	var sb strings.Builder
+	sb.Grow(len(b) * 3)
+	for i, c := range b {
+		if i > 0 {
+			sb.WriteByte(' ')
+		}
+		fmt.Fprintf(&sb, "%02X", c)
+	}
+	return sb.String()
+}
+
+// logVerboseGSOFPacket logs raw or flattened GSOF packet bytes as spaced hex (chunked lines).
+func logVerboseGSOFPacket(opts *ApplyGSOFOpts, tag string, b []byte) {
+	if opts == nil || !opts.Verbose {
+		return
+	}
+	total := len(b)
+	if total == 0 {
+		log.Printf("gsof verbose group=%q identity=%q %s bytes=0 (empty)", opts.GroupID, opts.Identity, tag)
+		return
+	}
+	show := b
+	truncNote := ""
+	if total > verboseGSOFHexMaxDump {
+		show = b[:verboseGSOFHexMaxDump]
+		truncNote = fmt.Sprintf(" (truncated hex dump to first %d bytes)", verboseGSOFHexMaxDump)
+	}
+	log.Printf("gsof verbose group=%q identity=%q %s total_bytes=%d%s", opts.GroupID, opts.Identity, tag, total, truncNote)
+	for off := 0; off < len(show); off += verboseGSOFHexChunkBytes {
+		end := off + verboseGSOFHexChunkBytes
+		if end > len(show) {
+			end = len(show)
+		}
+		log.Printf("gsof verbose group=%q identity=%q %s [%04d:%04d]: %s",
+			opts.GroupID, opts.Identity, tag, off, end, spacedHexBytes(show[off:end]))
+	}
+}
+
 // ApplyGSOFOpts selects optional stderr logging for ApplyGSOFBuffer.
 type ApplyGSOFOpts struct {
 	Verbose  bool
+	Summary  *GSOFSummary
 	GroupID  string
 	Identity string // serial number or anon store key
 }
@@ -51,8 +99,12 @@ func countGSOFSubrecords(m map[byte]int) int {
 // ApplyGSOFBuffer merges GSOF sub-records into snap.
 func ApplyGSOFBuffer(snap *ReceiverSnapshot, gsofBuf []byte, opts *ApplyGSOFOpts) {
 	flat := dcol.FlattenGSOFBuffer(gsofBuf)
-	var recCounts map[byte]int
 	if opts != nil && opts.Verbose {
+		logVerboseGSOFPacket(opts, "gsof_packet_raw", gsofBuf)
+		logVerboseGSOFPacket(opts, "gsof_packet_flat", flat)
+	}
+	var recCounts map[byte]int
+	if opts != nil && (opts.Verbose || opts.Summary != nil) {
 		recCounts = make(map[byte]int)
 	}
 	var detail48 []gsof.DetailSV
@@ -77,8 +129,8 @@ func ApplyGSOFBuffer(snap *ReceiverSnapshot, gsofBuf []byte, opts *ApplyGSOFOpts
 			}
 		case 0x02:
 			if opts != nil && opts.Verbose {
-				log.Printf("gsof verbose group=%q identity=%q type=0x02 payload_bytes=%d",
-					opts.GroupID, opts.Identity, len(payload))
+				log.Printf("gsof verbose group=%q identity=%q type=0x02 payload_bytes=%d payload_hex=%s",
+					opts.GroupID, opts.Identity, len(payload), spacedHexBytes(payload))
 			}
 			if lat, lon, h, ok := gsof.ParseLLHType2(payload); ok {
 				if math.IsNaN(lat) || math.IsNaN(lon) || math.IsNaN(h) ||
@@ -200,9 +252,14 @@ func ApplyGSOFBuffer(snap *ReceiverSnapshot, gsofBuf []byte, opts *ApplyGSOFOpts
 	})
 
 	if recCounts != nil {
-		_, has02 := recCounts[0x02]
-		log.Printf("gsof verbose group=%q identity=%q gsof_buf=%dB flat=%dB subrecords=%d hist=%s type02_present=%v",
-			opts.GroupID, opts.Identity, len(gsofBuf), len(flat), countGSOFSubrecords(recCounts), formatGSOFTypeHistogram(recCounts), has02)
+		if opts.Verbose {
+			_, has02 := recCounts[0x02]
+			log.Printf("gsof verbose group=%q identity=%q gsof_buf=%dB flat=%dB subrecords=%d hist=%s type02_present=%v",
+				opts.GroupID, opts.Identity, len(gsofBuf), len(flat), countGSOFSubrecords(recCounts), formatGSOFTypeHistogram(recCounts), has02)
+		}
+		if opts.Summary != nil {
+			opts.Summary.Record(opts.GroupID, opts.Identity, recCounts)
+		}
 	}
 
 	if hasUTC {
@@ -267,6 +324,7 @@ func detailToSVInfo(d []gsof.DetailSV) []SVInfo {
 			System:    s.System,
 			Elevation: s.Elevation,
 			Azimuth:   s.Azimuth,
+			HasAzEl:   true,
 			CN0:       s.CN0L1,
 			CN0L2:     l2,
 			CN0L56:    l56,
@@ -286,8 +344,7 @@ func briefToSVInfo(b []gsof.BriefSV) []SVInfo {
 		out = append(out, SVInfo{
 			PRN:       s.PRN,
 			System:    s.System,
-			Elevation: 0,
-			Azimuth:   0,
+			HasAzEl:   false,
 			CN0:       0,
 			UsedInPos: gsof.Flags1UsedInPos(s.Flags1),
 			UsedInRTK: gsof.Flags1UsedInRTK(s.Flags1),

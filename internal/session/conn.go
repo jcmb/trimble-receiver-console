@@ -38,20 +38,42 @@ type ConnSession struct {
 	lastNoGSOFWarn time.Time
 	openedAt       time.Time
 	rxBytes        uint64 // ingress bytes (not exposed to clients; for diagnostics only)
+
+	// outbound is true for client-mode dials (gsof_connect). Passive read only — no GET SERIAL on connect.
+	outbound    bool
+	dialTarget  string // configured host:port for outbound (empty for inbound)
+	displayAddr string // UI label (remote addr or "→ host:port")
 }
 
 func NewConnSession(c net.Conn, gr *GroupRuntime, cfg *appcfg.Config) *ConnSession {
-	key := "anon:" + c.RemoteAddr().String()
+	return newConnSession(c, gr, cfg, "", false)
+}
+
+// NewOutboundConnSession serves an outbound GSOF dial (gsof_connect). It does not send GET SERIAL on
+// connect so passive broadcast streams are not disturbed; store key is stable per dial target.
+func NewOutboundConnSession(c net.Conn, gr *GroupRuntime, cfg *appcfg.Config, dialTarget string) *ConnSession {
+	return newConnSession(c, gr, cfg, dialTarget, true)
+}
+
+func newConnSession(c net.Conn, gr *GroupRuntime, cfg *appcfg.Config, dialTarget string, outbound bool) *ConnSession {
+	remote := c.RemoteAddr().String()
+	key := "anon:" + remote
+	displayAddr := remote
+	if outbound {
+		key = "out:" + dialTarget
+		displayAddr = "→ " + dialTarget
+	}
 	configured := Mode(cfg.DefaultMode)
 	if configured != ModeReadOnly && configured != ModeReadWrite {
 		configured = ModeReadWrite
 	}
 	now := time.Now()
 	snap := &ReceiverSnapshot{
-		GroupID:    gr.ID,
-		FirstSeen:  now,
-		Serial:     "",
-		RemoteAddr: c.RemoteAddr().String(),
+		GroupID:       gr.ID,
+		FirstSeen:     now,
+		Serial:        "",
+		RemoteAddr:    displayAddr,
+		ConnectionKey: key,
 		Mode:       EffectiveSnapshotMode(configured, false),
 		Online:     true,
 		LastUpdate: now,
@@ -59,14 +81,17 @@ func NewConnSession(c net.Conn, gr *GroupRuntime, cfg *appcfg.Config) *ConnSessi
 	}
 	gr.Store.Set(key, snap)
 	return &ConnSession{
-		group:    gr,
-		conn:     c,
-		storeKey: key,
-		store:    gr.Store,
-		cfg:      cfg,
-		parser:   trimble.NewDCOLParser(),
-		mode:     configured,
-		openedAt: now,
+		group:       gr,
+		conn:        c,
+		storeKey:    key,
+		store:       gr.Store,
+		cfg:         cfg,
+		parser:      trimble.NewDCOLParser(),
+		mode:        configured,
+		openedAt:    now,
+		outbound:    outbound,
+		dialTarget:  dialTarget,
+		displayAddr: displayAddr,
 	}
 }
 
@@ -82,7 +107,11 @@ func (s *ConnSession) Run() {
 		s.conn.Close()
 	}()
 	buf := make([]byte, 32*1024)
-	s.sendStartupDCOLQueries()
+	if !s.outbound {
+		s.sendStartupDCOLQueries()
+	} else {
+		log.Printf("GSOF outbound passive read group_id=%q target=%s remote=%s", s.group.ID, s.dialTarget, remote)
+	}
 	for {
 		n, err := s.conn.Read(buf)
 		if n > 0 {
@@ -140,7 +169,7 @@ func (s *ConnSession) handleMessage(m dcol.Message) {
 		snap = &ReceiverSnapshot{
 			GroupID:    s.group.ID,
 			FirstSeen:  t,
-			RemoteAddr: s.conn.RemoteAddr().String(),
+			RemoteAddr: s.displayAddr,
 			Mode:       EffectiveSnapshotMode(s.mode, false),
 			Online:     true,
 			LastUpdate: t,
@@ -152,7 +181,12 @@ func (s *ConnSession) handleMessage(m dcol.Message) {
 	}
 	snap.Online = true
 	snap.LastUpdate = time.Now()
-	snap.RemoteAddr = s.conn.RemoteAddr().String()
+	snap.ConnectionKey = s.storeKey
+	if s.outbound {
+		snap.RemoteAddr = s.displayAddr
+	} else {
+		snap.RemoteAddr = s.conn.RemoteAddr().String()
+	}
 	if len(m.StreamWarnings) > 0 {
 		snap.StreamWarnings = append([]string(nil), m.StreamWarnings...)
 	}
@@ -188,18 +222,26 @@ func (s *ConnSession) handleMessage(m dcol.Message) {
 	snap.GSOFReportCount++
 	prevSerial := snap.Serial
 	var gsofLog *ApplyGSOFOpts
-	if s.cfg.VerboseGSOF {
+	if s.cfg.VerboseGSOF || s.group.GSOFSummary != nil {
 		id := snap.Serial
 		if id == "" {
 			id = s.storeKey
 		}
-		gsofLog = &ApplyGSOFOpts{Verbose: true, GroupID: s.group.ID, Identity: id}
+		if s.cfg.VerboseGSOF {
+			log.Printf("gsof verbose group=%q identity=%q dcol_packet_type=0x%02X seq=%d gsof_buffer_len=%d dcol_payload_len=%d",
+				s.group.ID, id, m.PacketType, m.SequenceNumber, len(m.GSOFBuffer), len(m.Payload))
+		}
+		gsofLog = &ApplyGSOFOpts{GroupID: s.group.ID, Identity: id, Summary: s.group.GSOFSummary}
+		if s.cfg.VerboseGSOF {
+			gsofLog.Verbose = true
+		}
 	}
 	ApplyGSOFBuffer(snap, m.GSOFBuffer, gsofLog)
 
-	if snap.Serial != "" && snap.Serial != prevSerial && strings.HasPrefix(s.storeKey, "anon:") {
+	if snap.Serial != "" && snap.Serial != prevSerial && (strings.HasPrefix(s.storeKey, "anon:") || strings.HasPrefix(s.storeKey, "out:")) {
 		s.store.Delete(s.storeKey)
 		s.storeKey = snap.Serial
+		snap.ConnectionKey = s.storeKey
 	}
 	s.lastSerial = snap.Serial
 	s.maybeBumpSerialConnection(snap)

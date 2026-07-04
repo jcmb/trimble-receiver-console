@@ -214,6 +214,9 @@ func ParseAllSVDetailType48(payload []byte) (out []DetailSV, ok bool) {
 }
 
 // parseAllSVDetailRows parses SV rows; countIdx points at the SV count byte, dataStart at the first SV byte.
+// Legacy receivers may append padding after the last row or send a short final page; we infer 8- vs 10-byte
+// rows from declared count and available bytes, ignore trailing slack, and accept partial rows as long as
+// at least one complete SV decodes (matches practical Trimble streams).
 func parseAllSVDetailRows(payload []byte, countIdx, dataStart int) (out []DetailSV, ok bool) {
 	if countIdx < 0 || dataStart < 0 || len(payload) <= countIdx || len(payload) < dataStart {
 		return nil, false
@@ -223,24 +226,32 @@ func parseAllSVDetailRows(payload []byte, countIdx, dataStart int) (out []Detail
 		return nil, true
 	}
 	dataLen := len(payload) - dataStart
-	stride := dataLen / n
-	if stride < 8 || dataLen != stride*n {
+	if dataLen < 8 {
 		return nil, false
 	}
-	hasL2, has56 := false, false
-	switch stride {
-	case 8:
-		// legacy 8-byte SV rows (single SNR)
-	case 10:
-		hasL2, has56 = true, true
+
+	var stride int
+	switch {
+	case dataLen >= n*10:
+		stride = 10
+	case dataLen >= n*8:
+		stride = 8
 	default:
-		return nil, false
+		// Short packet (e.g. last page or truncated link): prefer 10-byte row layout when possible.
+		if dataLen >= 10 {
+			stride = 10
+		} else {
+			stride = 8
+		}
 	}
+
+	hasL2 := stride >= 10
+	has56 := stride >= 10
 
 	ptr := dataStart
 	var res []DetailSV
 	for i := 0; i < n; i++ {
-		if ptr+8 > len(payload) {
+		if ptr+stride > len(payload) {
 			break
 		}
 		prn := int(payload[ptr])
@@ -265,7 +276,7 @@ func parseAllSVDetailRows(payload []byte, countIdx, dataStart int) (out []Detail
 			HasL2: hasL2, HasL56: has56,
 		})
 	}
-	return res, len(res) == n
+	return res, len(res) > 0
 }
 
 type DetailSV struct {

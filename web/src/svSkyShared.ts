@@ -27,11 +27,26 @@ export function sysIndex(sv: SVInfo): number {
   return 8;
 }
 
-/** Same eligibility filter as the sky plot (exclude placeholder-only rows). */
+/** True when elevation/azimuth are from ALL-SV detail (34/48), not brief SV (0x21). */
+export function svHasAzEl(sv: SVInfo): boolean {
+  if (sv.has_az_el === false) return false;
+  if (sv.has_az_el === true) return true;
+  return sv.elevation_deg > 0 || sv.azimuth_deg > 0;
+}
+
+export function fmtSvElevation(sv: SVInfo): string {
+  return svHasAzEl(sv) ? `${sv.elevation_deg.toFixed(0)}°` : "N/A";
+}
+
+export function fmtSvAzimuth(sv: SVInfo): string {
+  return svHasAzEl(sv) ? `${sv.azimuth_deg.toFixed(0)}°` : "N/A";
+}
+
+/** Same eligibility filter as the sky plot (geometry required). */
 export function trackedSatellitesForSky(svs: SVInfo[]): SVInfo[] {
   const out: SVInfo[] = [];
   for (const sv of svs) {
-    if (sv.elevation_deg <= 0 && sv.azimuth_deg <= 0 && !sv.used_in_position) {
+    if (!svHasAzEl(sv)) {
       continue;
     }
     out.push(sv);
@@ -54,7 +69,7 @@ export function svDetailRows(sv: SVInfo): SvDetailRow[] {
     { label: "SV", value: `${sys} PRN ${sv.prn}` },
     {
       label: "Elevation · Azimuth",
-      value: `${sv.elevation_deg.toFixed(0)}° · ${sv.azimuth_deg.toFixed(0)}°`,
+      value: `${fmtSvElevation(sv)} · ${fmtSvAzimuth(sv)}`,
     },
     {
       label: "C/N₀",
@@ -82,7 +97,7 @@ export function svTooltipText(sv: SVInfo): string {
   const sys = SV_SYSTEM_NAMES[sysIndex(sv)] ?? "?";
   const lines = [
     `${sys} PRN ${sv.prn}`,
-    `Elevation ${sv.elevation_deg.toFixed(0)}° · Azimuth ${sv.azimuth_deg.toFixed(0)}°`,
+    `Elevation ${fmtSvElevation(sv)} · Azimuth ${fmtSvAzimuth(sv)}`,
     `C/N₀  L1 ${fmtCn(sv.cn0_db_hz)} · L2 ${fmtCn(sv.cn0_l2_db_hz)} · L5 ${fmtCn(sv.cn0_l56_db_hz)}`,
   ];
   if (sv.track_l1 || sv.track_l2 || sv.track_l5) {
